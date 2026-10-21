@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "numpy-algebras"
 version = "0.1.0"
 description = "Custom number types for numpy."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["numpy"]
 
 [tool.setuptools.packages.find]
