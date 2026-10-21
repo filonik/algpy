@@ -3,10 +3,6 @@ from setuptools import Extension, setup
 
 extensions = [
     Extension(
-        "algpy._core",
-        ["src/algpy/_core.c"],
-    ),
-    Extension(
         "algpy.algebras.quaternion._quaternion",
         ["src/algpy/algebras/quaternion/_quaternion.c"],
         depends=[
