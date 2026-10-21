@@ -810,7 +810,6 @@ static PyTypeObject MetaType = {
     .tp_basicsize = sizeof(PyHeapTypeObject),
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_getset = meta_getset,
-    .tp_base = &PyType_Type,
 };
 
 /* Type factory */
@@ -947,6 +946,7 @@ PyInit__multicomplex3(void)
     if (m == NULL) {
         return NULL;
     }
+    MetaType.tp_base = &PyType_Type;  /* not a constant initializer on MSVC */
     if (PyType_Ready(&MetaType) < 0) {
         Py_DECREF(m);
         return NULL;
