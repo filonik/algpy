@@ -11,16 +11,16 @@
 
 #include <math.h>
 
-#include "../../complex/complex1.h"
+#include "../../cayleydickson/complex.h"
 #include "../../../vectorspaces/vec1.h"
 #include "../../../vectorspaces/vec2.h"
 
 typedef vec2 multicomplex1;
 
 static inline multicomplex1
-multicomplex1_make(double x, double y)
+multicomplex1_make(double x, double x0)
 {
-    multicomplex1 r = {{x, y}};
+    multicomplex1 r = {{x, x0}};
     return r;
 }
 
@@ -130,13 +130,13 @@ multicomplex1_minpoly(vec1 k, multicomplex1 a, double result[3])
 
 /* Eigenvalues x -/+ y*sqrt(k), as complex numbers. */
 static inline void
-multicomplex1_eivals(vec1 k, multicomplex1 a, complex1 result[2])
+multicomplex1_eivals(vec1 k, multicomplex1 a, complex result[2])
 {
-    complex1 s = complex1_sqrt_real(k.data[0]);
-    complex1 t = complex1_make(a.data[1], 0);
-    complex1 d = complex1_mul(t, s);
-    result[0] = complex1_make(a.data[0] - d.data[0], -d.data[1]);
-    result[1] = complex1_make(a.data[0] + d.data[0], +d.data[1]);
+    complex s = complex_sqrt_real(k.data[0]);
+    complex t = complex_make(a.data[1], 0);
+    complex d = complex_mul(t, s);
+    result[0] = complex_make(a.data[0] - d.data[0], -d.data[1]);
+    result[1] = complex_make(a.data[0] + d.data[0], +d.data[1]);
 }
 
 #endif /* ALGPY_MULTICOMPLEX1_H */

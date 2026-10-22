@@ -77,7 +77,7 @@ multicomplex3_conjugate(multicomplex3 a)
 
 /* Norm a*conj(a) = u^2 - k[2]*v^2 with a = u + v*e2. */
 static inline multicomplex2
-multicomplex3_norm(vec3 k, multicomplex3 a)
+multicomplex3_norm2(vec3 k, multicomplex3 a)
 {
     vec2 k01 = {{k.data[0], k.data[1]}};
     multicomplex2 u = multicomplex2_make(a.data[0], a.data[1],
@@ -89,11 +89,32 @@ multicomplex3_norm(vec3 k, multicomplex3 a)
     return vec4_sub(uu, vec4_scale(vv, k.data[2]));
 }
 
+static inline multicomplex1
+multicomplex3_norm4(vec3 k, multicomplex3 a)
+{
+    vec2 k01 = {{k.data[0], k.data[1]}};
+    return multicomplex2_norm2(k01, multicomplex3_norm2(k, a));
+}
+
+static inline double
+multicomplex3_norm8(vec3 k, multicomplex3 a)
+{
+    vec1 k0 = {{k.data[0]}};
+    return multicomplex1_norm2(k0, multicomplex3_norm4(k, a));
+}
+
+static inline complex
+multicomplex3_norm(vec3 k, multicomplex3 a)
+{
+    return complex_root_real(multicomplex3_norm8(k, a), 8);
+}
+
+
 static inline multicomplex3
 multicomplex3_inv(vec3 k, multicomplex3 a)
 {
     vec2 k01 = {{k.data[0], k.data[1]}};
-    multicomplex2 ninv = multicomplex2_inv(k01, multicomplex3_norm(k, a));
+    multicomplex2 ninv = multicomplex2_inv(k01, multicomplex3_norm2(k, a));
     multicomplex2 u = multicomplex2_make(a.data[0], a.data[1],
                                          a.data[2], a.data[3]);
     multicomplex2 v = multicomplex2_make(a.data[4], a.data[5],
@@ -167,20 +188,20 @@ multicomplex3_minpoly(vec3 k, multicomplex3 a, double result[9])
  * as complex numbers.
  */
 static inline void
-multicomplex3_eivals(vec3 k, multicomplex3 a, complex1 result[8])
+multicomplex3_eivals(vec3 k, multicomplex3 a, complex result[8])
 {
-    complex1 s[3];
-    complex1 n[8];
+    complex s[3];
+    complex n[8];
     int i, j, b;
 
     for (b = 0; b < 3; b++) {
-        s[b] = complex1_sqrt_real(k.data[b]);
+        s[b] = complex_sqrt_real(k.data[b]);
     }
     for (i = 0; i < 8; i++) {
-        complex1 t = complex1_make(a.data[i], 0);
+        complex t = complex_make(a.data[i], 0);
         for (b = 0; b < 3; b++) {
             if (i & (1 << b)) {
-                t = complex1_mul(t, s[b]);
+                t = complex_mul(t, s[b]);
             }
         }
         n[i] = t;
@@ -197,7 +218,7 @@ multicomplex3_eivals(vec3 k, multicomplex3 a, complex1 result[8])
             re += sign * n[i].data[0];
             im += sign * n[i].data[1];
         }
-            result[j] = complex1_make(re, im);
+            result[j] = complex_make(re, im);
     }
 }
 

@@ -24,6 +24,30 @@ quaternion_make(double w, double x, double y, double z)
 }
 
 static inline quaternion
+quaternion_re(quaternion a)
+{
+    return quaternion_make(a.data[0], 0, 0, 0);
+}
+
+static inline quaternion
+quaternion_im(quaternion a)
+{
+    return quaternion_make(0, a.data[1], a.data[2], a.data[3]);
+}
+
+static inline quaternion
+quaternion_from_re(double a)
+{
+    return quaternion_make(a, 0, 0, 0);
+}
+
+static inline double
+quaternion_to_re(quaternion a)
+{
+    return a.data[0];
+}
+
+static inline quaternion
 quaternion_one(void)
 {
     return quaternion_make(1, 0, 0, 0);
@@ -99,27 +123,6 @@ quaternion_vector_norm(quaternion a)
     return sqrt(quaternion_vector_norm2(a));
 }
 
-static inline void
-quaternion_minpoly(quaternion a, double result[3])
-{
-    result[0] = quaternion_norm2(a);
-    result[1] = -2 * a.data[0];
-    result[2] = 1;
-}
-
-/*
- * Eigenvalues x0 -/+ sqrt(-|v|^2) of the quaternion, as complex numbers
- * stored in a vec2 (data[0] = real part, data[1] = imaginary part).
- * Always a conjugate pair; real quaternions give a double eigenvalue.
- */
-static inline void
-quaternion_eivals(quaternion a, vec2 result[2])
-{
-    double vn = quaternion_vector_norm(a);
-    result[0] = (vec2){{a.data[0], -vn}};
-    result[1] = (vec2){{a.data[0], vn}};
-}
-
 static inline quaternion
 quaternion_conjugate(quaternion a)
 {
@@ -172,6 +175,98 @@ quaternion_log(quaternion a)
     f = atan2(vn, a.data[0]) / vn;
     return quaternion_make(log(sqrt(quaternion_norm2(a))),
                            f * a.data[1], f * a.data[2], f * a.data[3]);
+}
+
+static inline quaternion
+quaternion_pow(quaternion a, quaternion b)
+{
+    return quaternion_exp(quaternion_mul(quaternion_log(a), b));
+}
+
+/*
+// TODO
+static inline quaternion
+quaternion_sqrt(quaternion a)
+{
+}
+*/
+
+static inline quaternion
+quaternion_radd(double a, quaternion b) {
+  return vec4_add(quaternion_from_re(a), b);
+}
+
+static inline quaternion
+quaternion_ladd(quaternion a, double b) {
+  return vec4_add(a, quaternion_from_re(b));
+}
+
+static inline quaternion
+quaternion_rsub(double a, quaternion b) {
+  return vec4_sub(quaternion_from_re(a), b);
+}
+
+static inline quaternion
+quaternion_lsub(quaternion a, double b) {
+  return vec4_sub(a, quaternion_from_re(b));
+}
+
+static inline quaternion
+quaternion_rmul(double a, quaternion b) {
+  return quaternion_mul(quaternion_from_re(a), b);
+}
+
+static inline quaternion
+quaternion_lmul(quaternion a, double b) {
+  return quaternion_mul(a, quaternion_from_re(b));
+}
+
+static inline quaternion
+quaternion_rdiv(double a, quaternion b) {
+  return quaternion_div(quaternion_from_re(a), b);
+}
+
+static inline quaternion
+quaternion_ldiv(quaternion a, double b) {
+  return quaternion_div(a, quaternion_from_re(b));
+}
+
+static inline quaternion
+quaternion_rpow(double a, quaternion b) {
+  return quaternion_pow(quaternion_from_re(a), b);
+}
+
+static inline quaternion
+quaternion_lpow(quaternion a, double b) {
+  return quaternion_pow(a, quaternion_from_re(b));
+}
+
+static inline quaternion
+quaternion_mix(quaternion a, quaternion b, double t)
+{
+    quaternion delta = quaternion_mul(quaternion_inv(a), b);
+    return quaternion_mul(a, quaternion_lpow(delta, t));
+}
+
+static inline void
+quaternion_minpoly(quaternion a, double result[3])
+{
+    result[0] = quaternion_norm2(a);
+    result[1] = -2 * a.data[0];
+    result[2] = 1;
+}
+
+/*
+ * Eigenvalues x0 -/+ sqrt(-|v|^2) of the quaternion, as complex numbers
+ * stored in a vec2 (data[0] = real part, data[1] = imaginary part).
+ * Always a conjugate pair; real quaternions give a double eigenvalue.
+ */
+static inline void
+quaternion_eivals(quaternion a, vec2 result[2])
+{
+    double vn = quaternion_vector_norm(a);
+    result[0] = (vec2){{a.data[0], -vn}};
+    result[1] = (vec2){{a.data[0], vn}};
 }
 
 #endif /* ALGPY_QUATERNION_H */

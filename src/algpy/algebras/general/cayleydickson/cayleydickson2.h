@@ -5,7 +5,7 @@
 
 #include <math.h>
 
-#include "../../complex/complex1.h"
+#include "../../cayleydickson/complex.h"
 #include "../../../vectorspaces/vec2.h"
 #include "../../../vectorspaces/vec4.h"
 
@@ -124,11 +124,11 @@ cayleydickson2_minpoly(vec2 k, cayleydickson2 a, double result[3])
 
 /* Roots w +/- sqrt(-norm2(im(a))) of the minimal polynomial, as complex numbers. */
 static inline void
-cayleydickson2_eivals(vec2 k, cayleydickson2 a, complex1 result[2])
+cayleydickson2_eivals(vec2 k, cayleydickson2 a, complex result[2])
 {
-    complex1 s = complex1_sqrt_real(-cayleydickson2_norm2(k, cayleydickson2_im(a)));
-    result[0] = complex1_make(a.data[0] - s.data[0], -s.data[1]);
-    result[1] = complex1_make(a.data[0] + s.data[0], +s.data[1]);
+    complex s = complex_sqrt_real(-cayleydickson2_norm2(k, cayleydickson2_im(a)));
+    result[0] = complex_make(a.data[0] - s.data[0], -s.data[1]);
+    result[1] = complex_make(a.data[0] + s.data[0], +s.data[1]);
 }
 
 #endif /* ALGPY_CAYLEYDICKSON2_H */

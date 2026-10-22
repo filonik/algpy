@@ -5,6 +5,8 @@
 
 #include "../../vectorspaces/vec8.h"
 
+#define ALGPY_COMPLEX3_N ALGPY_VEC8_N
+
 typedef vec8 complex3;
 
 

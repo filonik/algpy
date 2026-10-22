@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "splitcomplex1.h"
+#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -296,12 +297,19 @@ pysplitcomplex1_reduce(PyObject *self, PyObject *Py_UNUSED(args))
                          v.data[0], v.data[1]);
 }
 
+static PyObject *
+pysplitcomplex1_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return algpy_norm_to_py(complex_root_real(splitcomplex1_norm2(((PySplitcomplex1 *)self)->v), 2));
+}
+
 static PyMethodDef pysplitcomplex1_methods[] = {
     {"zero", pysplitcomplex1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pysplitcomplex1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pysplitcomplex1_norm2, METH_NOARGS, "Squared norm."},
+    {"norm", pysplitcomplex1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pysplitcomplex1_conjugate, METH_NOARGS, "Split-complex conjugate."},
     {"minpoly", pysplitcomplex1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pysplitcomplex1_eivals, METH_NOARGS, "Eigenvalues."},
@@ -396,7 +404,7 @@ static PyType_Slot pysplitcomplex1_slots[] = {
 };
 
 static PyType_Spec pysplitcomplex1_spec = {
-    .name = "algpy.algebras.splitcomplex.splitcomplex1",
+    .name = "algpy.algebras.multicomplex.splitcomplex1",
     .basicsize = sizeof(PySplitcomplex1),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .slots = pysplitcomplex1_slots,

@@ -20,6 +20,8 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../norm.h"
+
 #include "multicomplex3.h"
 
 /* Per-k type information */
@@ -173,7 +175,7 @@ pymc3_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec8_equal(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(vec8_all_eq(x, y) == (op == Py_EQ));
 }
 
 #define MC3_BINARY(name, expr)                                             \
@@ -216,7 +218,7 @@ pymc3_neg(PyObject *self)
 static int
 pymc3_bool(PyObject *self)
 {
-    return vec8_nonzero(((PyMC3 *)self)->v);
+    return vec8_any_nonzero(((PyMC3 *)self)->v);
 }
 
 static PyObject *
@@ -263,7 +265,7 @@ pymc3_eivals(PyObject *self, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type(Py_TYPE(self));
     npy_intp dims[1] = {8};
-    complex1 ev[8];
+    complex ev[8];
     npy_cdouble *d;
     PyObject *arr;
     int i;
@@ -332,11 +334,22 @@ pymc3_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
     return (PyObject *)arr;
 }
 
+static PyObject *
+pymc3_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_norm_to_py(complex_root_real(multicomplex3_norm8(info->k, ((PyMC3 *)self)->v), 8));
+}
+
 static PyMethodDef pymc3_methods[] = {
     {"zero", pymc3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pymc3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
+    {"norm", pymc3_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pymc3_conjugate, METH_NOARGS, "Conjugate."},
     {"minpoly", pymc3_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pymc3_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
@@ -527,7 +540,7 @@ npymc3_nonzero(void *data, void *arr)
 {
     multicomplex3 v;
     memcpy(&v, data, sizeof(v));
-    return vec8_nonzero(v) ? NPY_TRUE : NPY_FALSE;
+    return vec8_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
 static PyArray_ArrFuncs npymc3_arrfuncs;
@@ -602,7 +615,7 @@ static multicomplex3 op_add(vec3 k, multicomplex3 a, multicomplex3 b)
 static multicomplex3 op_sub(vec3 k, multicomplex3 a, multicomplex3 b)
 { return vec8_sub(a, b); }
 static int op_not_equal(multicomplex3 a, multicomplex3 b)
-{ return !vec8_equal(a, b); }
+{ return !vec8_all_eq(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -702,7 +715,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", multicomplex3_mul) ||
         BIN("divide", multicomplex3_div) ||
         UN("positive", vec8_pos) || UN("negative", vec8_neg) ||
-        PRED("equal", vec8_equal) || PRED("not_equal", op_not_equal)
+        PRED("equal", vec8_all_eq) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN

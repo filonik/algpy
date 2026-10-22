@@ -1,34 +1,16 @@
-"""Custom number types for numpy, implemented in Cython."""
-from .general.multicomplex import multicomplex, multicomplex1, multicomplex2, multicomplex3, multicomplex4
-from .general.clifford import clifford, clifford1, clifford2
-from .general.cayleydickson import (
-    cayleydickson,
-    cayleydickson1,
-    cayleydickson2,
-    cayleydickson3,
-    cayleydickson4,
-)
-from .quaternion import quaternion
-from .complex import complex1
-from .dual import dual1
-from .splitcomplex import splitcomplex1
+"""Custom number types for numpy, implemented in C.
+
+The general families live in ``algpy.algebras.general``.
+"""
+from .cayleydickson import quaternion
+from .multicomplex import complex1, complex2, dual1, dual2, splitcomplex1, splitcomplex2
 
 __all__ = [
-    "multicomplex",
-    "multicomplex1",
-    "multicomplex2",
-    "multicomplex3",
-    "multicomplex4",
-    "clifford",
-    "clifford1",
-    "clifford2",
-    "cayleydickson",
-    "cayleydickson1",
-    "cayleydickson2",
-    "cayleydickson3",
-    "cayleydickson4",
     "quaternion",
     "complex1",
+    "complex2",
     "dual1",
+    "dual2",
     "splitcomplex1",
+    "splitcomplex2",
 ]

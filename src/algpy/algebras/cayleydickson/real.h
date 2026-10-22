@@ -11,6 +11,8 @@
 
 #include "../../vectorspaces/vec1.h"
 
+#define ALGPY_REAL_N ALGPY_VEC1_N
+
 typedef vec1 real;
 
 static inline real

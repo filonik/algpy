@@ -17,6 +17,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "quaternion.h"
+#include "../norm.h"
 
 /* Python scalar type */
 
@@ -142,9 +143,9 @@ pyquaternion_richcompare(PyObject *a, PyObject *b, int op)
     }
     switch (op) {
         case Py_EQ:
-            return PyBool_FromLong(vec4_equal(x, y));
+            return PyBool_FromLong(vec4_all_eq(x, y));
         case Py_NE:
-            return PyBool_FromLong(!vec4_equal(x, y));
+            return PyBool_FromLong(!vec4_all_eq(x, y));
         default:
             Py_RETURN_NOTIMPLEMENTED;
     }
@@ -196,7 +197,7 @@ pyquaternion_one(PyObject *cls, PyObject *Py_UNUSED(args))
 static int
 pyquaternion_bool(PyObject *self)
 {
-    return vec4_nonzero(((PyQuaternion *)self)->q);
+    return vec4_any_nonzero(((PyQuaternion *)self)->q);
 }
 
 static PyObject *
@@ -293,12 +294,19 @@ pyquaternion_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
     return (PyObject *)arr;
 }
 
+static PyObject *
+pyquaternion_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return algpy_norm_to_py(complex_root_real(quaternion_norm2(((PyQuaternion *)self)->q), 2));
+}
+
 static PyMethodDef pyquaternion_methods[] = {
     {"zero", pyquaternion_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pyquaternion_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pyquaternion_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pyquaternion_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pyquaternion_norm2, METH_NOARGS, "Squared norm."},
+    {"norm", pyquaternion_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pyquaternion_conjugate, METH_NOARGS, "Quaternion conjugate."},
     {"minpoly", pyquaternion_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pyquaternion_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
@@ -388,7 +396,7 @@ static PyType_Slot pyquaternion_slots[] = {
 };
 
 static PyType_Spec pyquaternion_spec = {
-    .name = "algpy.algebras.quaternion.quaternion",
+    .name = "algpy.algebras.cayleydickson.quaternion",
     .basicsize = sizeof(PyQuaternion),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .slots = pyquaternion_slots,
@@ -486,7 +494,7 @@ npyquaternion_nonzero(void *data, void *arr)
 {
     quaternion q;
     memcpy(&q, data, sizeof(q));
-    return vec4_nonzero(q) ? NPY_TRUE : NPY_FALSE;
+    return vec4_any_nonzero(q) ? NPY_TRUE : NPY_FALSE;
 }
 
 static PyArray_ArrFuncs npyquaternion_arrfuncs;
@@ -626,7 +634,7 @@ loop_predicate(char **args, npy_intp const *dims, npy_intp const *steps,
 static int
 quaternion_not_equal(quaternion a, quaternion b)
 {
-    return !vec4_equal(a, b);
+    return !vec4_all_eq(a, b);
 }
 
 static int
@@ -668,7 +676,7 @@ register_ufuncs(PyObject *numpy)
                       vec4_neg) ||
         register_loop(numpy, "exp", loop_unary, 2, 0, quaternion_exp) ||
         register_loop(numpy, "log", loop_unary, 2, 0, quaternion_log) ||
-        register_loop(numpy, "equal", loop_predicate, 3, 1, vec4_equal) ||
+        register_loop(numpy, "equal", loop_predicate, 3, 1, vec4_all_eq) ||
         register_loop(numpy, "not_equal", loop_predicate, 3, 1,
                       quaternion_not_equal)
         ? -1 : 0;

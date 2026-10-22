@@ -10,7 +10,7 @@
 
 #include <math.h>
 
-#include "../../complex/complex1.h"
+#include "../../cayleydickson/complex.h"
 #include "cayleydickson3.h"
 #include "../../../vectorspaces/vec4.h"
 #include "../../../vectorspaces/vec16.h"
@@ -168,11 +168,11 @@ cayleydickson4_minpoly(vec4 k, cayleydickson4 a, double result[3])
 }
 
 static inline void
-cayleydickson4_eivals(vec4 k, cayleydickson4 a, complex1 result[2])
+cayleydickson4_eivals(vec4 k, cayleydickson4 a, complex result[2])
 {
-    complex1 s = complex1_sqrt_real(-cayleydickson4_norm2(k, cayleydickson4_im(a)));
-    result[0] = complex1_make(a.data[0] - s.data[0], -s.data[1]);
-    result[1] = complex1_make(a.data[0] + s.data[0], +s.data[1]);
+    complex s = complex_sqrt_real(-cayleydickson4_norm2(k, cayleydickson4_im(a)));
+    result[0] = complex_make(a.data[0] - s.data[0], -s.data[1]);
+    result[1] = complex_make(a.data[0] + s.data[0], +s.data[1]);
 }
 
 #endif /* ALGPY_CAYLEYDICKSON4_H */

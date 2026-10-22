@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "dual1.h"
+#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -296,12 +297,19 @@ pydual1_reduce(PyObject *self, PyObject *Py_UNUSED(args))
                          v.data[0], v.data[1]);
 }
 
+static PyObject *
+pydual1_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return algpy_norm_to_py(complex_root_real(dual1_norm2(((PyDual1 *)self)->v), 2));
+}
+
 static PyMethodDef pydual1_methods[] = {
     {"zero", pydual1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pydual1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pydual1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pydual1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pydual1_norm2, METH_NOARGS, "Squared norm."},
+    {"norm", pydual1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pydual1_conjugate, METH_NOARGS, "Dual conjugate."},
     {"minpoly", pydual1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pydual1_eivals, METH_NOARGS, "Eigenvalues."},
@@ -396,7 +404,7 @@ static PyType_Slot pydual1_slots[] = {
 };
 
 static PyType_Spec pydual1_spec = {
-    .name = "algpy.algebras.dual.dual1",
+    .name = "algpy.algebras.multicomplex.dual1",
     .basicsize = sizeof(PyDual1),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .slots = pydual1_slots,

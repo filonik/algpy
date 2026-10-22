@@ -19,6 +19,8 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../norm.h"
+
 #ifndef MC1_HEADER
 #define MC1_HEADER "multicomplex1.h"
 #endif
@@ -179,7 +181,7 @@ pymc1_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec2_equal(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(vec2_all_eq(x, y) == (op == Py_EQ));
 }
 
 #define MC1_BINARY(name, expr)                                             \
@@ -222,7 +224,7 @@ pymc1_neg(PyObject *self)
 static int
 pymc1_bool(PyObject *self)
 {
-    return vec2_nonzero(((PyMC1 *)self)->v);
+    return vec2_any_nonzero(((PyMC1 *)self)->v);
 }
 
 static PyObject *
@@ -278,7 +280,7 @@ pymc1_eivals(PyObject *self, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type(Py_TYPE(self));
     npy_intp dims[1] = {2};
-    complex1 ev[2];
+    complex ev[2];
     npy_cdouble *d;
     PyObject *arr;
     int i;
@@ -347,11 +349,22 @@ pymc1_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
     return (PyObject *)arr;
 }
 
+static PyObject *
+pymc1_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_norm_to_py(complex_root_real(multicomplex1_norm2(info->k, ((PyMC1 *)self)->v), 2));
+}
+
 static PyMethodDef pymc1_methods[] = {
     {"zero", pymc1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pymc1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
+    {"norm", pymc1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pymc1_conjugate, METH_NOARGS, "Conjugate."},
     {"norm2", pymc1_norm2, METH_NOARGS, "Norm x*x - k*y*y."},
     {"minpoly", pymc1_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
@@ -543,7 +556,7 @@ npymc1_nonzero(void *data, void *arr)
 {
     multicomplex1 v;
     memcpy(&v, data, sizeof(v));
-    return vec2_nonzero(v) ? NPY_TRUE : NPY_FALSE;
+    return vec2_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
 static PyArray_ArrFuncs npymc1_arrfuncs;
@@ -618,7 +631,7 @@ static multicomplex1 op_add(vec1 k, multicomplex1 a, multicomplex1 b)
 static multicomplex1 op_sub(vec1 k, multicomplex1 a, multicomplex1 b)
 { return vec2_sub(a, b); }
 static int op_not_equal(multicomplex1 a, multicomplex1 b)
-{ return !vec2_equal(a, b); }
+{ return !vec2_all_eq(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -718,7 +731,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", multicomplex1_mul) ||
         BIN("divide", multicomplex1_div) ||
         UN("positive", vec2_pos) || UN("negative", vec2_neg) ||
-        PRED("equal", vec2_equal) || PRED("not_equal", op_not_equal)
+        PRED("equal", vec2_all_eq) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN

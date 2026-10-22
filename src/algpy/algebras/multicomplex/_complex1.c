@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "complex1.h"
+#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -229,14 +230,10 @@ pycomplex1_minpoly(PyObject *self, PyObject *Py_UNUSED(args))
     complex1 v = ((PyComplex1 *)self)->v;
     npy_intp dims[1] = {3};
     PyObject *arr = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
-    double *d;
     if (arr == NULL) {
         return NULL;
     }
-    d = (double *)PyArray_DATA((PyArrayObject *)arr);
-    d[0] = complex1_norm2(v);
-    d[1] = -2 * v.data[0];
-    d[2] = 1;
+    complex_minpoly(v, (double *)PyArray_DATA((PyArrayObject *)arr));
     return arr;
 }
 
@@ -245,16 +242,18 @@ pycomplex1_eivals(PyObject *self, PyObject *Py_UNUSED(args))
 {
     complex1 v = ((PyComplex1 *)self)->v;
     npy_intp dims[1] = {2};
+    complex ev[2];
     npy_cdouble *d;
     PyObject *arr = PyArray_SimpleNew(1, dims, NPY_CDOUBLE);
     if (arr == NULL) {
         return NULL;
     }
+    complex_eivals(v, ev);
     d = (npy_cdouble *)PyArray_DATA((PyArrayObject *)arr);
-    npy_csetreal(&d[0], v.data[0]);
-    npy_csetimag(&d[0], -v.data[1]);
-    npy_csetreal(&d[1], v.data[0]);
-    npy_csetimag(&d[1], v.data[1]);
+    npy_csetreal(&d[0], ev[0].data[0]);
+    npy_csetimag(&d[0], ev[0].data[1]);
+    npy_csetreal(&d[1], ev[1].data[0]);
+    npy_csetimag(&d[1], ev[1].data[1]);
     return arr;
 }
 
@@ -296,12 +295,19 @@ pycomplex1_reduce(PyObject *self, PyObject *Py_UNUSED(args))
                          v.data[0], v.data[1]);
 }
 
+static PyObject *
+pycomplex1_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return algpy_norm_to_py(complex_root_real(complex1_norm2(((PyComplex1 *)self)->v), 2));
+}
+
 static PyMethodDef pycomplex1_methods[] = {
     {"zero", pycomplex1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycomplex1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycomplex1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycomplex1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pycomplex1_norm2, METH_NOARGS, "Squared norm."},
+    {"norm", pycomplex1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pycomplex1_conjugate, METH_NOARGS, "Complex conjugate."},
     {"minpoly", pycomplex1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pycomplex1_eivals, METH_NOARGS, "Eigenvalues."},
@@ -396,7 +402,7 @@ static PyType_Slot pycomplex1_slots[] = {
 };
 
 static PyType_Spec pycomplex1_spec = {
-    .name = "algpy.algebras.complex.complex1",
+    .name = "algpy.algebras.multicomplex.complex1",
     .basicsize = sizeof(PyComplex1),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .slots = pycomplex1_slots,

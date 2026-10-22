@@ -5,6 +5,8 @@
 
 #include "../../vectorspaces/vec16.h"
 
+#define ALGPY_COMPLEX4_N ALGPY_VEC16_N
+
 typedef vec16 complex4;
 
 

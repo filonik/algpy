@@ -20,9 +20,9 @@
 typedef vec4 multicomplex2;
 
 static inline multicomplex2
-multicomplex2_make(double w, double x, double y, double z)
+multicomplex2_make(double x, double x0, double x1, double x01)
 {
-    multicomplex2 r = {{w, x, y, z}};
+    multicomplex2 r = {{x, x0, x1, x01}};
     return r;
 }
 
@@ -70,35 +70,38 @@ multicomplex2_conjugate(multicomplex2 a)
     return multicomplex2_make(a.data[0], a.data[1], -a.data[2], -a.data[3]);
 }
 
-/*
- * Norm a*conj(a) = u^2 - k[1]*v^2 with a = u + v*e2, an element of the inner
- * multicomplex1 algebra (parameter k[0]).
- */
+
+/* Norm a*conj(a) = u^2 - k[1]*v^2 with a = u + v*e2. */
 static inline multicomplex1
-multicomplex2_norm(vec2 k, multicomplex2 a)
+multicomplex2_norm2(vec2 k, multicomplex2 a)
 {
     vec1 k0 = {{k.data[0]}};
     multicomplex1 u = multicomplex1_make(a.data[0], a.data[1]);
     multicomplex1 v = multicomplex1_make(a.data[2], a.data[3]);
     multicomplex1 uu = multicomplex1_mul(k0, u, u);
     multicomplex1 vv = multicomplex1_mul(k0, v, v);
-    return multicomplex1_make(uu.data[0] - k.data[1]*vv.data[0], uu.data[1] - k.data[1]*vv.data[1]);
+    return vec2_sub(uu, vec2_scale(vv, k.data[1]));
 }
 
-/*
 static inline double
 multicomplex2_norm4(vec2 k, multicomplex2 a)
 {
-    vec1 k0 ={{k.data[0]}};
-    return multicomplex1_norm2(k0, multicomplex2_norm(k, a));
+    vec1 k0 = {{k.data[0]}};
+    return multicomplex1_norm2(k0, multicomplex2_norm2(k, a));
 }
-*/
+
+static inline complex
+multicomplex2_norm(vec2 k, multicomplex2 a)
+{
+    return complex_root_real(multicomplex2_norm4(k, a), 4);
+}
+
 
 static inline multicomplex2
 multicomplex2_inv(vec2 k, multicomplex2 a)
 {
     vec1 k0 = {{k.data[0]}};
-    multicomplex1 ninv = multicomplex1_inv(k0, multicomplex2_norm(k, a));
+    multicomplex1 ninv = multicomplex1_inv(k0, multicomplex2_norm2(k, a));
     multicomplex1 u = multicomplex1_make(a.data[0], a.data[1]);
     multicomplex1 v = multicomplex1_make(a.data[2], a.data[3]);
     multicomplex1 ru = multicomplex1_mul(k0, u, ninv);
@@ -161,17 +164,17 @@ multicomplex2_minpoly(vec2 k, multicomplex2 a, double result[5])
  * as complex numbers.
  */
 static inline void
-multicomplex2_eivals(vec2 k, multicomplex2 a, complex1 result[4])
+multicomplex2_eivals(vec2 k, multicomplex2 a, complex result[4])
 {
-    complex1 s0 = complex1_sqrt_real(k.data[0]);
-    complex1 s1 = complex1_sqrt_real(k.data[1]);
-    complex1 t1 = complex1_mul(complex1_make(a.data[1], 0), s0);
-    complex1 t2 = complex1_mul(complex1_make(a.data[2], 0), s1);
-    complex1 t3 = complex1_mul(complex1_mul(complex1_make(a.data[3], 0), s0), s1);
-    result[0] = complex1_make(a.data[0] - t1.data[0] - t2.data[0] + t3.data[0], -t1.data[1] - t2.data[1] + t3.data[1]);
-    result[1] = complex1_make(a.data[0] + t1.data[0] + t2.data[0] + t3.data[0], +t1.data[1] + t2.data[1] + t3.data[1]);
-    result[2] = complex1_make(a.data[0] + t1.data[0] - t2.data[0] - t3.data[0], +t1.data[1] - t2.data[1] - t3.data[1]);
-    result[3] = complex1_make(a.data[0] - t1.data[0] + t2.data[0] - t3.data[0], -t1.data[1] + t2.data[1] - t3.data[1]);
+    complex s0 = complex_sqrt_real(k.data[0]);
+    complex s1 = complex_sqrt_real(k.data[1]);
+    complex t1 = complex_mul(complex_make(a.data[1], 0), s0);
+    complex t2 = complex_mul(complex_make(a.data[2], 0), s1);
+    complex t3 = complex_mul(complex_mul(complex_make(a.data[3], 0), s0), s1);
+    result[0] = complex_make(a.data[0] - t1.data[0] - t2.data[0] + t3.data[0], -t1.data[1] - t2.data[1] + t3.data[1]);
+    result[1] = complex_make(a.data[0] + t1.data[0] + t2.data[0] + t3.data[0], +t1.data[1] + t2.data[1] + t3.data[1]);
+    result[2] = complex_make(a.data[0] + t1.data[0] - t2.data[0] - t3.data[0], +t1.data[1] - t2.data[1] - t3.data[1]);
+    result[3] = complex_make(a.data[0] - t1.data[0] + t2.data[0] - t3.data[0], -t1.data[1] + t2.data[1] - t3.data[1]);
 }
 
 #endif /* ALGPY_MULTICOMPLEX2_H */

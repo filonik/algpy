@@ -19,6 +19,8 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../norm.h"
+
 #include "cayleydickson2.h"
 
 /* Per-k type information */
@@ -167,7 +169,7 @@ pycd2_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec4_equal(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(vec4_all_eq(x, y) == (op == Py_EQ));
 }
 
 #define CD2_BINARY(name, expr)                                             \
@@ -210,7 +212,7 @@ pycd2_neg(PyObject *self)
 static int
 pycd2_bool(PyObject *self)
 {
-    return vec4_nonzero(((PyCD2 *)self)->v);
+    return vec4_any_nonzero(((PyCD2 *)self)->v);
 }
 
 static PyObject *
@@ -257,7 +259,7 @@ pycd2_eivals(PyObject *self, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type(Py_TYPE(self));
     npy_intp dims[1] = {2};
-    complex1 ev[2];
+    complex ev[2];
     npy_cdouble *d;
     PyObject *arr;
     int i;
@@ -325,11 +327,22 @@ pycd2_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
     return (PyObject *)arr;
 }
 
+static PyObject *
+pycd2_norm(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_norm_to_py(complex_root_real(cayleydickson2_norm2(info->k, ((PyCD2 *)self)->v), 2));
+}
+
 static PyMethodDef pycd2_methods[] = {
     {"zero", pycd2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycd2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycd2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycd2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
+    {"norm", pycd2_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
     {"conjugate", pycd2_conjugate, METH_NOARGS, "Conjugate."},
     {"minpoly", pycd2_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pycd2_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
@@ -520,7 +533,7 @@ npycd2_nonzero(void *data, void *arr)
 {
     cayleydickson2 v;
     memcpy(&v, data, sizeof(v));
-    return vec4_nonzero(v) ? NPY_TRUE : NPY_FALSE;
+    return vec4_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
 static PyArray_ArrFuncs npycd2_arrfuncs;
@@ -595,7 +608,7 @@ static cayleydickson2 op_add(vec2 k, cayleydickson2 a, cayleydickson2 b)
 static cayleydickson2 op_sub(vec2 k, cayleydickson2 a, cayleydickson2 b)
 { return vec4_sub(a, b); }
 static int op_not_equal(cayleydickson2 a, cayleydickson2 b)
-{ return !vec4_equal(a, b); }
+{ return !vec4_all_eq(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -695,7 +708,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", cayleydickson2_mul) ||
         BIN("divide", cayleydickson2_div) ||
         UN("positive", vec4_pos) || UN("negative", vec4_neg) ||
-        PRED("equal", vec4_equal) || PRED("not_equal", op_not_equal)
+        PRED("equal", vec4_all_eq) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN
