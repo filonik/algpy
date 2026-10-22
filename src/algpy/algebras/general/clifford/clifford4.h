@@ -12,6 +12,20 @@
 
 typedef vec16 clifford4;
 
+static inline int popcount(unsigned int x)
+{
+#if defined(__clang__) || defined(__GNUC__)
+    return __builtin_popcount(x);
+#else
+    int count = 0;
+    while (x != 0) {
+        x &= x - 1;  /* Clear the lowest set bit. */
+        ++count;
+    }
+    return count;
+#endif
+}
+
 static inline clifford4
 clifford4_make(double x, double x0, double x1, double x01,
                     double x2, double x02, double x12, double x012,
@@ -137,7 +151,7 @@ clifford4_conjugate(clifford4 a)
     clifford4 r = a;
     int i;
     for (i = 0; i < ALGPY_CLIFFORD4_N; i++) {
-        int g = __builtin_popcount(i);
+        int g = popcount(i);
         if (((g * (g + 1)) / 2) & 1) {
             r.data[i] = -r.data[i];
         }
