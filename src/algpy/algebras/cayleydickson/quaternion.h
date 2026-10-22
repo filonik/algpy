@@ -7,8 +7,7 @@
 #ifndef ALGPY_QUATERNION_H
 #define ALGPY_QUATERNION_H
 
-#include <math.h>
-
+#include "complex.h"
 #include "../../vectorspaces/vec2.h"
 #include "../../vectorspaces/vec4.h"
 
@@ -167,8 +166,7 @@ quaternion_log(quaternion a)
     double f;
     if (vn == 0) {
         if (a.data[0] < 0) {
-            return quaternion_make(log(-a.data[0]),
-                                   3.14159265358979323846, 0, 0);
+            return quaternion_make(log(-a.data[0]), M_PI, 0, 0);
         }
         return quaternion_make(log(a.data[0]), 0, 0, 0);
     }
@@ -262,11 +260,11 @@ quaternion_minpoly(quaternion a, double result[3])
  * Always a conjugate pair; real quaternions give a double eigenvalue.
  */
 static inline void
-quaternion_eivals(quaternion a, vec2 result[2])
+quaternion_eivals(quaternion a, complex result[2])
 {
     double vn = quaternion_vector_norm(a);
-    result[0] = (vec2){{a.data[0], -vn}};
-    result[1] = (vec2){{a.data[0], vn}};
+    result[0] = complex_make(a.data[0], -vn);
+    result[1] = complex_make(a.data[0], +vn);
 }
 
 #endif /* ALGPY_QUATERNION_H */

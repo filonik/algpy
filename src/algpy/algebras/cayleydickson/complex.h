@@ -12,6 +12,10 @@
 
 #define ALGPY_COMPLEX_N ALGPY_VEC2_N
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 /* C99 <complex.h> (pulled in by NumPy) defines complex as a macro. */
 #undef complex
 
