@@ -625,6 +625,8 @@ static clifford4 op_add(vec4 k, clifford4 a, clifford4 b)
 { return vec16_add(a, b); }
 static clifford4 op_sub(vec4 k, clifford4 a, clifford4 b)
 { return vec16_sub(a, b); }
+static int op_equal(clifford4 a, clifford4 b)
+{ return vec16_all_eq(a, b); }
 static int op_not_equal(clifford4 a, clifford4 b)
 { return !vec16_all_eq(a, b); }
 
@@ -726,7 +728,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", clifford4_mul) ||
         BIN("divide", clifford4_div) ||
         UN("positive", vec16_pos) || UN("negative", vec16_neg) ||
-        PRED("equal", vec16_all_eq) || PRED("not_equal", op_not_equal)
+        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN

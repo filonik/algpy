@@ -614,6 +614,8 @@ static cayleydickson3 op_add(vec3 k, cayleydickson3 a, cayleydickson3 b)
 { return vec8_add(a, b); }
 static cayleydickson3 op_sub(vec3 k, cayleydickson3 a, cayleydickson3 b)
 { return vec8_sub(a, b); }
+static int op_equal(cayleydickson3 a, cayleydickson3 b)
+{ return vec8_all_eq(a, b); }
 static int op_not_equal(cayleydickson3 a, cayleydickson3 b)
 { return !vec8_all_eq(a, b); }
 
@@ -715,7 +717,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", cayleydickson3_mul) ||
         BIN("divide", cayleydickson3_div) ||
         UN("positive", vec8_pos) || UN("negative", vec8_neg) ||
-        PRED("equal", vec8_all_eq) || PRED("not_equal", op_not_equal)
+        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN

@@ -630,6 +630,8 @@ static multicomplex1 op_add(vec1 k, multicomplex1 a, multicomplex1 b)
 { return vec2_add(a, b); }
 static multicomplex1 op_sub(vec1 k, multicomplex1 a, multicomplex1 b)
 { return vec2_sub(a, b); }
+static int op_equal(multicomplex1 a, multicomplex1 b)
+{ return vec2_all_eq(a, b); }
 static int op_not_equal(multicomplex1 a, multicomplex1 b)
 { return !vec2_all_eq(a, b); }
 
@@ -731,7 +733,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("multiply", multicomplex1_mul) ||
         BIN("divide", multicomplex1_div) ||
         UN("positive", vec2_pos) || UN("negative", vec2_neg) ||
-        PRED("equal", vec2_all_eq) || PRED("not_equal", op_not_equal)
+        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN
