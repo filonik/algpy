@@ -9,9 +9,9 @@
 
 #include <math.h>
 
-#include "../cayleydickson/complex.h"
-#include "dual1.h"
+#include "../../fields/complex.h"
 #include "../../vectorspaces/vec4.h"
+#include "dual1.h"
 
 #define ALGPY_DUAL2_N ALGPY_VEC4_N
 
@@ -98,20 +98,19 @@ dual2_norm4(dual2 a)
     return dual1_norm2(dual2_norm2(a));
 }
 
-static inline complex
+static inline double
 dual2_norm(dual2 a)
 {
-    return complex_root_real(dual2_norm4(a), 4);
+    return fabs(a.data[0]);
 }
 
 static inline dual2
 dual2_inv(dual2 a)
 {
-    dual1 ninv = dual1_inv(dual2_norm2(a));
     dual1 u = dual1_make(a.data[0], a.data[1]);
     dual1 v = dual1_make(a.data[2], a.data[3]);
-    dual1 ru = dual1_mul(u, ninv);
-    dual1 rv = dual1_mul(vec2_neg(v), ninv);
+    dual1 ru = dual1_inv(u);
+    dual1 rv = vec2_neg(dual1_mul(dual1_mul(v, ru), ru));
     return dual2_make(ru.data[0], ru.data[1], rv.data[0], rv.data[1]);
 }
 
@@ -124,46 +123,36 @@ dual2_div(dual2 a, dual2 b)
     return dual2_mul(a, dual2_inv(b));
 }
 
-/*
- * Apply a smooth real function to a number x + x0*e0 + x1*e1 + x01*e0*e1
- * (e0^2 = e1^2 = 0) given f(x), f'(x) and f''(x):
- *   f(a) = f + f'*(x0*e0 + x1*e1 + x01*e0*e1) + f''*x0*x1*e0*e1.
+/* With a = u + v*e1 and e1^2 = 0, f(a) = f(u) + v*deriv1(u)*e1.
+ * deriv1 itself is dual-valued, so it carries the mixed second derivative.
+ * Callbacks must be defined and differentiable at the real part.
  */
 static inline dual2
-dual2_apply(dual2 a, double f0, double f1, double f2)
+dual2_apply(dual2 a, dual1 (*f)(dual1), dual1 (*deriv1)(dual1))
 {
-    return dual2_make(
-        f0,
-        f1*a.data[1],
-        f1*a.data[2],
-        f1*a.data[3] + f2*a.data[1]*a.data[2]);
+    dual1 u = dual1_make(a.data[0], a.data[1]);
+    dual1 v = dual1_make(a.data[2], a.data[3]);
+    dual1 value = f(u);
+    dual1 tangent = dual1_mul(v, deriv1(u));
+    return dual2_make(value.data[0], value.data[1], tangent.data[0], tangent.data[1]);
 }
 
 static inline dual2
 dual2_exp(dual2 a)
 {
-    double e = exp(a.data[0]);
-    return dual2_apply(a, e, e, e);
+    return dual2_apply(a, dual1_exp, dual1_exp_deriv1);
 }
 
 static inline dual2
 dual2_log(dual2 a)
 {
-    double x = a.data[0];
-    return dual2_apply(a, log(x), 1 / x, -1 / (x*x));
+    return dual2_apply(a, dual1_log, dual1_log_deriv1);
 }
 
 static inline dual2
 dual2_pow(dual2 a, dual2 b)
 {
     return dual2_exp(dual2_mul(dual2_log(a), b));
-}
-
-static inline dual2
-dual2_sqrt(dual2 a)
-{
-    double r = sqrt(a.data[0]);
-    return dual2_apply(a, r, 1 / (2*r), -1 / (4*r*a.data[0]));
 }
 
 static inline dual2
@@ -223,6 +212,84 @@ dual2_mix(dual2 a, dual2 b, double t)
     return dual2_mul(a, dual2_lpow(delta, t));
 }
 
+static inline dual2
+dual2_cos(dual2 a)
+{
+    return dual2_apply(a, dual1_cos, dual1_cos_deriv1);
+}
+
+static inline dual2
+dual2_sin(dual2 a)
+{
+    return dual2_apply(a, dual1_sin, dual1_sin_deriv1);
+}
+
+static inline dual2
+dual2_tan(dual2 a)
+{
+    return dual2_apply(a, dual1_tan, dual1_tan_deriv1);
+}
+
+static inline dual2
+dual2_cosh(dual2 a)
+{
+    return dual2_apply(a, dual1_cosh, dual1_cosh_deriv1);
+}
+
+static inline dual2
+dual2_sinh(dual2 a)
+{
+    return dual2_apply(a, dual1_sinh, dual1_sinh_deriv1);
+}
+
+static inline dual2
+dual2_tanh(dual2 a)
+{
+    return dual2_apply(a, dual1_tanh, dual1_tanh_deriv1);
+}
+
+static inline dual2
+dual2_sqrt(dual2 a)
+{
+    return dual2_apply(a, dual1_sqrt, dual1_sqrt_deriv1);
+}
+
+static inline dual2
+dual2_acos(dual2 a)
+{
+    return dual2_apply(a, dual1_acos, dual1_acos_deriv1);
+}
+
+static inline dual2
+dual2_asin(dual2 a)
+{
+    return dual2_apply(a, dual1_asin, dual1_asin_deriv1);
+}
+
+static inline dual2
+dual2_atan(dual2 a)
+{
+    return dual2_apply(a, dual1_atan, dual1_atan_deriv1);
+}
+
+static inline dual2
+dual2_acosh(dual2 a)
+{
+    return dual2_apply(a, dual1_acosh, dual1_acosh_deriv1);
+}
+
+static inline dual2
+dual2_asinh(dual2 a)
+{
+    return dual2_apply(a, dual1_asinh, dual1_asinh_deriv1);
+}
+
+static inline dual2
+dual2_atanh(dual2 a)
+{
+    return dual2_apply(a, dual1_atanh, dual1_atanh_deriv1);
+}
+
 static inline void
 dual2_minpoly(dual2 a, double result[5])
 {
@@ -243,5 +310,351 @@ dual2_eivals(dual2 a, complex result[4])
     result[2] = complex_make(x0, 0);
     result[3] = complex_make(x0, 0);
 }
+
+/* Common algebra API. */
+static inline dual2
+dual2_zero(void)
+{
+    return vec4_zero();
+}
+
+static inline int
+dual2_is_real(dual2 a)
+{
+    return vec4_is_real(a);
+}
+
+static inline dual2
+dual2_pos(dual2 a)
+{
+    return vec4_pos(a);
+}
+
+static inline dual2
+dual2_neg(dual2 a)
+{
+    return vec4_neg(a);
+}
+
+static inline dual2
+dual2_add(dual2 a, dual2 b)
+{
+    return vec4_add(a, b);
+}
+
+static inline dual2
+dual2_sub(dual2 a, dual2 b)
+{
+    return vec4_sub(a, b);
+}
+
+static inline int
+dual2_equal(dual2 a, dual2 b)
+{
+    return vec4_all_eq(a, b);
+}
+
+static inline int
+dual2_not_equal(dual2 a, dual2 b)
+{
+    return !dual2_equal(a, b);
+}
+
+static inline dual2
+dual2_re(dual2 a)
+{
+    return dual2_from_re(a.data[0]);
+}
+
+static inline dual2
+dual2_im(dual2 a)
+{
+    return dual2_sub(a, dual2_re(a));
+}
+
+static inline dual2
+dual2_square(dual2 a)
+{
+    return dual2_mul(a, a);
+}
+
+static inline dual2
+dual2_expm1(dual2 a)
+{
+    return dual2_apply(a, dual1_expm1, dual1_expm1_deriv1);
+}
+
+static inline dual2
+dual2_log1p(dual2 a)
+{
+    return dual2_apply(a, dual1_log1p, dual1_log1p_deriv1);
+}
+
+/* Derivatives through order 2; each dual level uses one more field derivative. */
+static inline dual2
+dual2_exp_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_exp_deriv1, dual1_exp_deriv2);
+}
+
+static inline dual2
+dual2_exp_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_exp_deriv2, dual1_exp_deriv3);
+}
+
+static inline dual2
+dual2_expm1_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_expm1_deriv1, dual1_expm1_deriv2);
+}
+
+static inline dual2
+dual2_expm1_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_expm1_deriv2, dual1_expm1_deriv3);
+}
+
+static inline dual2
+dual2_log_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_log_deriv1, dual1_log_deriv2);
+}
+
+static inline dual2
+dual2_log_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_log_deriv2, dual1_log_deriv3);
+}
+
+static inline dual2
+dual2_log1p_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_log1p_deriv1, dual1_log1p_deriv2);
+}
+
+static inline dual2
+dual2_log1p_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_log1p_deriv2, dual1_log1p_deriv3);
+}
+
+static inline dual2
+dual2_inv_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_inv_deriv1, dual1_inv_deriv2);
+}
+
+static inline dual2
+dual2_inv_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_inv_deriv2, dual1_inv_deriv3);
+}
+
+static inline dual2
+dual2_square_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_square_deriv1, dual1_square_deriv2);
+}
+
+static inline dual2
+dual2_square_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_square_deriv2, dual1_square_deriv3);
+}
+
+static inline dual2
+dual2_sqrt_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_sqrt_deriv1, dual1_sqrt_deriv2);
+}
+
+static inline dual2
+dual2_sqrt_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_sqrt_deriv2, dual1_sqrt_deriv3);
+}
+
+static inline dual2
+dual2_sin_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_sin_deriv1, dual1_sin_deriv2);
+}
+
+static inline dual2
+dual2_sin_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_sin_deriv2, dual1_sin_deriv3);
+}
+
+static inline dual2
+dual2_cos_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_cos_deriv1, dual1_cos_deriv2);
+}
+
+static inline dual2
+dual2_cos_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_cos_deriv2, dual1_cos_deriv3);
+}
+
+static inline dual2
+dual2_tan_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_tan_deriv1, dual1_tan_deriv2);
+}
+
+static inline dual2
+dual2_tan_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_tan_deriv2, dual1_tan_deriv3);
+}
+
+static inline dual2
+dual2_asin_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_asin_deriv1, dual1_asin_deriv2);
+}
+
+static inline dual2
+dual2_asin_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_asin_deriv2, dual1_asin_deriv3);
+}
+
+static inline dual2
+dual2_acos_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_acos_deriv1, dual1_acos_deriv2);
+}
+
+static inline dual2
+dual2_acos_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_acos_deriv2, dual1_acos_deriv3);
+}
+
+static inline dual2
+dual2_atan_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_atan_deriv1, dual1_atan_deriv2);
+}
+
+static inline dual2
+dual2_atan_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_atan_deriv2, dual1_atan_deriv3);
+}
+
+static inline dual2
+dual2_sinh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_sinh_deriv1, dual1_sinh_deriv2);
+}
+
+static inline dual2
+dual2_sinh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_sinh_deriv2, dual1_sinh_deriv3);
+}
+
+static inline dual2
+dual2_cosh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_cosh_deriv1, dual1_cosh_deriv2);
+}
+
+static inline dual2
+dual2_cosh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_cosh_deriv2, dual1_cosh_deriv3);
+}
+
+static inline dual2
+dual2_tanh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_tanh_deriv1, dual1_tanh_deriv2);
+}
+
+static inline dual2
+dual2_tanh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_tanh_deriv2, dual1_tanh_deriv3);
+}
+
+static inline dual2
+dual2_asinh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_asinh_deriv1, dual1_asinh_deriv2);
+}
+
+static inline dual2
+dual2_asinh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_asinh_deriv2, dual1_asinh_deriv3);
+}
+
+static inline dual2
+dual2_acosh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_acosh_deriv1, dual1_acosh_deriv2);
+}
+
+static inline dual2
+dual2_acosh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_acosh_deriv2, dual1_acosh_deriv3);
+}
+
+static inline dual2
+dual2_atanh_deriv1(dual2 a)
+{
+    return dual2_apply(a, dual1_atanh_deriv1, dual1_atanh_deriv2);
+}
+
+static inline dual2
+dual2_atanh_deriv2(dual2 a)
+{
+    return dual2_apply(a, dual1_atanh_deriv2, dual1_atanh_deriv3);
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+dual2_lmat(dual2 a, double result[ALGPY_DUAL2_N*ALGPY_DUAL2_N])
+{
+    dual2 coeffs[ALGPY_DUAL2_N * ALGPY_DUAL2_N];
+    int row, col, i;
+    dual2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_DUAL2_N; row++) {
+        for (col = 0; col < ALGPY_DUAL2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_DUAL2_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_DUAL2_N + col].data[row];
+            }
+            result[row * ALGPY_DUAL2_N + col] = value;
+        }
+    }
+}
+
+static inline void
+dual2_rmat(dual2 a, double result[ALGPY_DUAL2_N*ALGPY_DUAL2_N])
+{
+    dual2 coeffs[ALGPY_DUAL2_N * ALGPY_DUAL2_N];
+    int row, col, i;
+    dual2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_DUAL2_N; row++) {
+        for (col = 0; col < ALGPY_DUAL2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_DUAL2_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_DUAL2_N + i].data[col];
+            }
+            result[row * ALGPY_DUAL2_N + col] = value;
+        }
+    }
+}
+
 
 #endif /* ALGPY_DUAL2_H */

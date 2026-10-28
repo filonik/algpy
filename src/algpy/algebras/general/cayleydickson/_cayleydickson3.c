@@ -20,7 +20,7 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
-#include "../../norm.h"
+#include "../../../_conversions.h"
 
 #include "cayleydickson3.h"
 
@@ -36,7 +36,6 @@ typedef struct {
     PyObject_HEAD
     cayleydickson3 v;
 } PyCD3;
-
 
 static Info *
 info_of_type(PyTypeObject *type)
@@ -130,7 +129,7 @@ pycd3_hash(PyObject *self)
     cayleydickson3 v = ((PyCD3 *)self)->v;
     PyObject *obj;
     Py_hash_t h;
-    if (vec8_is_real(v)) {
+    if (cayleydickson3_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
     else {
@@ -175,7 +174,7 @@ pycd3_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec8_all_eq(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(cayleydickson3_equal(x, y) == (op == Py_EQ));
 }
 
 #define CD3_BINARY(name, expr)                                             \
@@ -198,21 +197,21 @@ pycd3_richcompare(PyObject *a, PyObject *b, int op)
         return cd3_from_value((PyTypeObject *)info->type, expr);           \
     }
 
-CD3_BINARY(add, vec8_add(x, y))
-CD3_BINARY(sub, vec8_sub(x, y))
+CD3_BINARY(add, cayleydickson3_add(x, y))
+CD3_BINARY(sub, cayleydickson3_sub(x, y))
 CD3_BINARY(mul, cayleydickson3_mul(info->k, x, y))
 CD3_BINARY(div, cayleydickson3_div(info->k, x, y))
 
 static PyObject *
 pycd3_pos(PyObject *self)
 {
-    return cd3_from_value(Py_TYPE(self), vec8_pos(((PyCD3 *)self)->v));
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_pos(((PyCD3 *)self)->v));
 }
 
 static PyObject *
 pycd3_neg(PyObject *self)
 {
-    return cd3_from_value(Py_TYPE(self), vec8_neg(((PyCD3 *)self)->v));
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_neg(((PyCD3 *)self)->v));
 }
 
 static int
@@ -231,7 +230,7 @@ pycd3_conjugate(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pycd3_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return cd3_from_value((PyTypeObject *)cls, vec8_zero());
+    return cd3_from_value((PyTypeObject *)cls, cayleydickson3_zero());
 }
 
 static PyObject *
@@ -241,6 +240,42 @@ pycd3_one(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *rebuild_func = NULL;
+
+static PyObject *
+pycd3_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {8, 8};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    cayleydickson3_lmat(info->k, ((PyCD3 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
+
+static PyObject *
+pycd3_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {8, 8};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    cayleydickson3_rmat(info->k, ((PyCD3 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
 
 static PyObject *
 pycd3_minpoly(PyObject *self, PyObject *Py_UNUSED(args))
@@ -341,16 +376,341 @@ pycd3_norm(PyObject *self, PyObject *Py_UNUSED(args))
     if (info == NULL) {
         return NULL;
     }
-    return algpy_norm_to_py(complex_root_real(cayleydickson3_norm2(info->k, ((PyCD3 *)self)->v), 2));
+    complex n = cayleydickson3_norm(info->k, ((PyCD3 *)self)->v);
+    return PyComplex_FromDoubles(n.data[0], n.data[1]);
+}
+
+static PyObject *
+pycd3_inv(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_inv(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_square(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_exp(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_exp(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_expm1(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_log(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_log(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_log1p(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_sqrt(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_sqrt(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_sin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_sin(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_cos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_cos(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_tan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_tan(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_asin(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_acos(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_atan(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_sinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_sinh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_cosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_cosh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_tanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_tanh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_asinh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_acosh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_atanh(info->k, ((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_re(((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return cd3_from_value(Py_TYPE(self), cayleydickson3_im(((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_real(PyObject *self, void *closure)
+{
+    return pycd3_re(self, NULL);
+}
+
+static PyObject *
+pycd3_imag(PyObject *self, void *closure)
+{
+    return pycd3_im(self, NULL);
+}
+
+static PyGetSetDef pycd3_getset[] = {
+    {"real", pycd3_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pycd3_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pycd3_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(cayleydickson3_is_real(((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(cayleydickson3_to_re(((PyCD3 *)self)->v));
+}
+
+static PyObject *
+pycd3_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return cd3_from_value((PyTypeObject *)cls, cayleydickson3_from_re(a));
+}
+
+static PyObject *
+pycd3_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    cayleydickson3 b;
+    double t;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = cd3_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return cd3_from_value(Py_TYPE(self),
+        cayleydickson3_mix(info->k, ((PyCD3 *)self)->v, b, t));
+}
+
+static PyObject *
+pycd3_to_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_to_float(args, kwargs, info->typenum, 8);
+}
+
+static PyObject *
+pycd3_from_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_from_float(args, kwargs, info->typenum, 8);
 }
 
 static PyMethodDef pycd3_methods[] = {
+    {"to_float", (PyCFunction)pycd3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pycd3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pycd3_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pycd3_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pycd3_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pycd3_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"inv", pycd3_inv, METH_NOARGS, "inv. See the C header for TODO status."},
+    {"square", pycd3_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"exp", pycd3_exp, METH_NOARGS, "exp. See the C header for TODO status."},
+    {"expm1", pycd3_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log", pycd3_log, METH_NOARGS, "log. See the C header for TODO status."},
+    {"log1p", pycd3_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"sqrt", pycd3_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
+    {"sin", pycd3_sin, METH_NOARGS, "sin. See the C header for TODO status."},
+    {"cos", pycd3_cos, METH_NOARGS, "cos. See the C header for TODO status."},
+    {"tan", pycd3_tan, METH_NOARGS, "tan. See the C header for TODO status."},
+    {"asin", pycd3_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pycd3_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pycd3_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"sinh", pycd3_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
+    {"cosh", pycd3_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
+    {"tanh", pycd3_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
+    {"asinh", pycd3_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pycd3_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pycd3_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pycd3_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pycd3_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pycd3_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pycd3_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pycd3_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pycd3_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pycd3_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pycd3_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pycd3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycd3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycd3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycd3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
-    {"norm", pycd3_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
+    {"norm", pycd3_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycd3_conjugate, METH_NOARGS, "Conjugate."},
+    {"lmat", pycd3_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pycd3_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pycd3_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pycd3_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pycd3_reduce, METH_NOARGS, "Support for pickle."},
@@ -409,6 +769,29 @@ pycd3_dealloc(PyObject *self)
     Py_DECREF(tp);
 }
 
+static PyObject *
+pycd3_pow(PyObject *a, PyObject *b, PyObject *mod)
+{
+    cayleydickson3 x, y;
+    int r;
+    Info *info = binary_info(a, b);
+    if (info == NULL) {
+        return NULL;
+    }
+    if (mod != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "cayleydickson3 does not support modular power");
+        return NULL;
+    }
+    if ((r = cd3_from_object(info, a, &x)) <= 0 ||
+            (r = cd3_from_object(info, b, &y)) <= 0) {
+        if (r < 0) {
+            return NULL;
+        }
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    return cd3_from_value((PyTypeObject *)info->type, cayleydickson3_pow(info->k, x, y));
+}
+
 static PyType_Slot pycd3_slots[] = {
     {Py_tp_dealloc, pycd3_dealloc},
     {Py_tp_traverse, pycd3_traverse},
@@ -420,6 +803,7 @@ static PyType_Slot pycd3_slots[] = {
     {Py_tp_doc, (void *)"Cayley-Dickson number with float64 components"},
     {Py_tp_richcompare, pycd3_richcompare},
     {Py_tp_methods, pycd3_methods},
+    {Py_tp_getset, pycd3_getset},
     {Py_sq_length, pycd3_length},
     {Py_sq_item, pycd3_item},
     {Py_mp_subscript, pycd3_subscript},
@@ -428,6 +812,7 @@ static PyType_Slot pycd3_slots[] = {
     {Py_nb_subtract, pycd3_sub},
     {Py_nb_multiply, pycd3_mul},
     {Py_nb_true_divide, pycd3_div},
+    {Py_nb_power, (void *)pycd3_pow},
     {Py_nb_positive, pycd3_pos},
     {Py_nb_negative, pycd3_neg},
     {Py_nb_bool, pycd3_bool},
@@ -606,18 +991,19 @@ register_casts(int typenum)
 typedef struct Op {
     const vec3 *k;
     cayleydickson3 (*unary)(cayleydickson3);
+    cayleydickson3 (*unary_k)(vec3, cayleydickson3);
     cayleydickson3 (*binary)(vec3, cayleydickson3, cayleydickson3);
     int (*pred)(cayleydickson3, cayleydickson3);
 } Op;
 
 static cayleydickson3 op_add(vec3 k, cayleydickson3 a, cayleydickson3 b)
-{ return vec8_add(a, b); }
+{ return cayleydickson3_add(a, b); }
 static cayleydickson3 op_sub(vec3 k, cayleydickson3 a, cayleydickson3 b)
-{ return vec8_sub(a, b); }
+{ return cayleydickson3_sub(a, b); }
 static int op_equal(cayleydickson3 a, cayleydickson3 b)
-{ return vec8_all_eq(a, b); }
+{ return cayleydickson3_equal(a, b); }
 static int op_not_equal(cayleydickson3 a, cayleydickson3 b)
-{ return !vec8_all_eq(a, b); }
+{ return !cayleydickson3_equal(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -630,6 +1016,22 @@ loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
         cayleydickson3 a, r;
         memcpy(&a, in, sizeof(a));
         r = op->unary(a);
+        memcpy(out, &r, sizeof(r));
+        in += steps[0];
+        out += steps[1];
+    }
+}
+
+static void
+loop_unary_k(char **args, npy_intp const *dims, npy_intp const *steps, void *data)
+{
+    Op *op = (Op *)data;
+    char *in = args[0], *out = args[1];
+    npy_intp i;
+    for (i = 0; i < dims[0]; i++) {
+        cayleydickson3 a, r;
+        memcpy(&a, in, sizeof(a));
+        r = op->unary_k(*op->k, a);
         memcpy(out, &r, sizeof(r));
         in += steps[0];
         out += steps[1];
@@ -707,49 +1109,47 @@ register_loop(Info *info, PyObject *numpy, const char *name,
 static int
 register_ufuncs(Info *info, PyObject *numpy)
 {
-    Op none = {NULL, NULL, NULL, NULL};
+    Op none = {NULL, NULL, NULL, NULL, NULL};
     Op o;
 #define BIN(name, f) (o = none, o.binary = f, register_loop(info, numpy, name, loop_binary, 3, 0, o))
 #define UN(name, f) (o = none, o.unary = f, register_loop(info, numpy, name, loop_unary, 2, 0, o))
+#define UNK(name, f) (o = none, o.unary_k = f, register_loop(info, numpy, name, loop_unary_k, 2, 0, o))
 #define PRED(name, f) (o = none, o.pred = f, register_loop(info, numpy, name, loop_predicate, 3, 1, o))
     return
-        BIN("add", op_add) || BIN("subtract", op_sub) ||
+        BIN("add", op_add) ||
+        BIN("subtract", op_sub) ||
         BIN("multiply", cayleydickson3_mul) ||
         BIN("divide", cayleydickson3_div) ||
-        UN("positive", vec8_pos) || UN("negative", vec8_neg) ||
-        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
+        BIN("power", cayleydickson3_pow) ||
+        UN("positive", cayleydickson3_pos) ||
+        UN("negative", cayleydickson3_neg) ||
+        UN("conjugate", cayleydickson3_conjugate) ||
+        UNK("reciprocal", cayleydickson3_inv) ||
+        UNK("square", cayleydickson3_square) ||
+        UNK("exp", cayleydickson3_exp) ||
+        UNK("expm1", cayleydickson3_expm1) ||
+        UNK("log", cayleydickson3_log) ||
+        UNK("log1p", cayleydickson3_log1p) ||
+        UNK("sqrt", cayleydickson3_sqrt) ||
+        UNK("sin", cayleydickson3_sin) ||
+        UNK("cos", cayleydickson3_cos) ||
+        UNK("tan", cayleydickson3_tan) ||
+        UNK("arcsin", cayleydickson3_asin) ||
+        UNK("arccos", cayleydickson3_acos) ||
+        UNK("arctan", cayleydickson3_atan) ||
+        UNK("sinh", cayleydickson3_sinh) ||
+        UNK("cosh", cayleydickson3_cosh) ||
+        UNK("tanh", cayleydickson3_tanh) ||
+        UNK("arcsinh", cayleydickson3_asinh) ||
+        UNK("arccosh", cayleydickson3_acosh) ||
+        UNK("arctanh", cayleydickson3_atanh) ||
+        PRED("equal", op_equal) ||
+        PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN
+#undef UNK
 #undef PRED
-}
-
-static int
-register_conversions(PyObject *type, int n)
-{
-    PyObject *module, *attach, *result, *size;
-    module = PyImport_ImportModule("algpy.algebras._conversions");
-    if (module == NULL) {
-        return -1;
-    }
-    attach = PyObject_GetAttrString(module, "attach");
-    Py_DECREF(module);
-    if (attach == NULL) {
-        return -1;
-    }
-    size = PyLong_FromLong(n);
-    if (size == NULL) {
-        Py_DECREF(attach);
-        return -1;
-    }
-    result = PyObject_CallFunctionObjArgs(attach, type, size, NULL);
-    Py_DECREF(size);
-    Py_DECREF(attach);
-    if (result == NULL) {
-        return -1;
-    }
-    Py_DECREF(result);
-    return 0;
 }
 
 /*
@@ -887,7 +1287,7 @@ create_type(double k0, double k1, double k2)
     }
     Py_DECREF(descr_obj);
 
-    if (register_conversions(type, 8) < 0) {
+    if (algpy_set_dimension(type, 8) < 0) {
         goto fail;
     }
 

@@ -8,9 +8,15 @@
 #ifndef ALGPY_MULTICOMPLEX3_H
 #define ALGPY_MULTICOMPLEX3_H
 
+#include "../../../fields/complex.h"
+
 #define ALGPY_MULTICOMPLEX3_N 8
 
 #include <math.h>
+
+#include "../../multicomplex/complex3.h"
+#include "../../multicomplex/splitcomplex3.h"
+#include "../../multicomplex/dual3.h"
 
 #include "multicomplex2.h"
 #include "../../../vectorspaces/vec3.h"
@@ -108,7 +114,6 @@ multicomplex3_norm(vec3 k, multicomplex3 a)
 {
     return complex_root_real(multicomplex3_norm8(k, a), 8);
 }
-
 
 static inline multicomplex3
 multicomplex3_inv(vec3 k, multicomplex3 a)
@@ -222,4 +227,678 @@ multicomplex3_eivals(vec3 k, multicomplex3 a, complex result[8])
     }
 }
 
-#endif
+/* Common algebra API. */
+static inline multicomplex3
+multicomplex3_zero(void)
+{
+    return vec8_zero();
+}
+
+static inline int
+multicomplex3_is_real(multicomplex3 a)
+{
+    return vec8_is_real(a);
+}
+
+static inline multicomplex3
+multicomplex3_pos(multicomplex3 a)
+{
+    return vec8_pos(a);
+}
+
+static inline multicomplex3
+multicomplex3_neg(multicomplex3 a)
+{
+    return vec8_neg(a);
+}
+
+static inline multicomplex3
+multicomplex3_add(multicomplex3 a, multicomplex3 b)
+{
+    return vec8_add(a, b);
+}
+
+static inline multicomplex3
+multicomplex3_sub(multicomplex3 a, multicomplex3 b)
+{
+    return vec8_sub(a, b);
+}
+
+static inline int
+multicomplex3_equal(multicomplex3 a, multicomplex3 b)
+{
+    return vec8_all_eq(a, b);
+}
+
+static inline int
+multicomplex3_not_equal(multicomplex3 a, multicomplex3 b)
+{
+    return !multicomplex3_equal(a, b);
+}
+
+static inline multicomplex3
+multicomplex3_re(multicomplex3 a)
+{
+    return multicomplex3_from_re(a.data[0]);
+}
+
+static inline multicomplex3
+multicomplex3_im(multicomplex3 a)
+{
+    return multicomplex3_sub(a, multicomplex3_re(a));
+}
+
+/* Exchange the first and outer generators, which commute. */
+static inline multicomplex3
+multicomplex3_swap_outer(multicomplex3 a)
+{
+    return multicomplex3_make(a.data[0], a.data[4], a.data[2], a.data[6], a.data[1], a.data[5], a.data[3], a.data[7]);
+}
+
+static inline multicomplex3
+multicomplex3_apply(vec3 k, multicomplex3 a, multicomplex2 (*f)(vec2, multicomplex2), multicomplex2 (*deriv1)(vec2, multicomplex2))
+{
+    vec2 base = {{k.data[0], k.data[1]}};
+    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
+    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    multicomplex2 p, q;
+    multicomplex3 result;
+    int i;
+    if (k.data[2] == 0) {
+        p = f(base, u);
+        q = multicomplex2_mul(base, v, deriv1(base, u));
+        for (i = 0; i < 4; i++) {
+            result.data[i] = p.data[i];
+            result.data[i+4] = q.data[i];
+        }
+        return result;
+    }
+    if (k.data[2] > 0) {
+        double s = sqrt(k.data[2]);
+        p = f(base, multicomplex2_add(u, vec4_scale(v, s)));
+        q = f(base, multicomplex2_sub(u, vec4_scale(v, s)));
+        for (i = 0; i < 4; i++) {
+            result.data[i] = (p.data[i]+q.data[i])/2;
+            result.data[i+4] = ((p.data[i]-q.data[i])/s)/2;
+        }
+        return result;
+    }
+    if (!(k.data[2] < 0)) {
+        return multicomplex3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    }
+    /* Find a complex direction in the lower algebra. */
+    int bit = 0;
+    double inner = 0;
+    if (k.data[0] < 0) {
+        bit = 1;
+        inner = k.data[0];
+    }
+    else if (k.data[1] < 0) {
+        bit = 2;
+        inner = k.data[1];
+    }
+    else {
+        /* Bring the first negative generator into the lower algebra. */
+        vec3 swapped = {{k.data[2], k.data[1], k.data[0]}};
+        return multicomplex3_swap_outer(multicomplex3_apply(swapped, multicomplex3_swap_outer(a), f, deriv1));
+    }
+    double outer_root = sqrt(-k.data[2]);
+    double inner_root = sqrt(-inner);
+    double even = -outer_root*inner_root;
+    double odd = outer_root/inner_root;
+    multicomplex2 jv;
+    /* j = sqrt(k_outer/k_inner)*e_inner, so j*j = k_outer. */
+    for (i = 0; i < 4; i++) {
+        jv.data[i] = v.data[i^bit]*(i & bit ? odd : even);
+    }
+    p = f(base, multicomplex2_add(u, jv));
+    q = f(base, multicomplex2_sub(u, jv));
+    for (i = 0; i < 4; i++) {
+        result.data[i] = (p.data[i]+q.data[i])/2;
+        result.data[i+4] = ((p.data[i^bit]-q.data[i^bit])/(i & bit ? even : odd))/2;
+    }
+    return result;
+}
+
+static inline multicomplex3
+multicomplex3_exp(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_exp(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_exp(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_exp(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_exp, multicomplex2_exp_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_log(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_log(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_log(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_log(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_log, multicomplex2_log_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_sqrt(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_sqrt(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_sqrt(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_sqrt(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_sqrt, multicomplex2_sqrt_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_cos(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_cos(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_cos(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_cos(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_cos, multicomplex2_cos_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_sin(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_sin(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_sin(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_sin(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_sin, multicomplex2_sin_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_tan(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_tan(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_tan(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_tan(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_tan, multicomplex2_tan_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_acos(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_acos(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_acos(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_acos(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_acos, multicomplex2_acos_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_asin(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_asin(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_asin(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_asin(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_asin, multicomplex2_asin_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_atan(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_atan(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_atan(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_atan(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_atan, multicomplex2_atan_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_cosh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_cosh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_cosh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_cosh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_cosh, multicomplex2_cosh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_sinh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_sinh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_sinh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_sinh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_sinh, multicomplex2_sinh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_tanh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_tanh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_tanh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_tanh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_tanh, multicomplex2_tanh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_acosh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_acosh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_acosh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_acosh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_acosh, multicomplex2_acosh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_asinh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_asinh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_asinh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_asinh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_asinh, multicomplex2_asinh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_atanh(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_atanh(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_atanh(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_atanh(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_atanh, multicomplex2_atanh_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_pow(vec3 k, multicomplex3 a, multicomplex3 b)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_pow(a, b);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_pow(a, b);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_pow(a, b);
+    }
+    vec2 base = {{k.data[0], k.data[1]}};
+    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
+    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    multicomplex2 bu = multicomplex2_make(b.data[0], b.data[1], b.data[2], b.data[3]);
+    multicomplex2 bv = multicomplex2_make(b.data[4], b.data[5], b.data[6], b.data[7]);
+    multicomplex2 p, q;
+    multicomplex3 result;
+    int i;
+    if (k.data[2] == 0) {
+        return multicomplex3_exp(k, multicomplex3_mul(k, multicomplex3_log(k, a), b));
+    }
+    if (k.data[2] > 0) {
+        double s = sqrt(k.data[2]);
+        p = multicomplex2_pow(base, multicomplex2_add(u, vec4_scale(v, s)), multicomplex2_add(bu, vec4_scale(bv, s)));
+        q = multicomplex2_pow(base, multicomplex2_sub(u, vec4_scale(v, s)), multicomplex2_sub(bu, vec4_scale(bv, s)));
+        for (i = 0; i < 4; i++) {
+            result.data[i] = (p.data[i]+q.data[i])/2;
+            result.data[i+4] = ((p.data[i]-q.data[i])/s)/2;
+        }
+        return result;
+    }
+    if (!(k.data[2] < 0)) {
+        return multicomplex3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    }
+    /* Find a complex direction in the lower algebra. */
+    int bit = 0;
+    double inner = 0;
+    if (k.data[0] < 0) {
+        bit = 1;
+        inner = k.data[0];
+    }
+    else if (k.data[1] < 0) {
+        bit = 2;
+        inner = k.data[1];
+    }
+    else {
+        /* Bring the first negative generator into the lower algebra. */
+        vec3 swapped = {{k.data[2], k.data[1], k.data[0]}};
+        return multicomplex3_swap_outer(multicomplex3_pow(swapped, multicomplex3_swap_outer(a), multicomplex3_swap_outer(b)));
+    }
+    double outer_root = sqrt(-k.data[2]);
+    double inner_root = sqrt(-inner);
+    double even = -outer_root*inner_root;
+    double odd = outer_root/inner_root;
+    multicomplex2 jv;
+    multicomplex2 jbv;
+    /* j = sqrt(k_outer/k_inner)*e_inner, so j*j = k_outer. */
+    for (i = 0; i < 4; i++) {
+        jv.data[i] = v.data[i^bit]*(i & bit ? odd : even);
+        jbv.data[i] = bv.data[i^bit]*(i & bit ? odd : even);
+    }
+    p = multicomplex2_pow(base, multicomplex2_add(u, jv), multicomplex2_add(bu, jbv));
+    q = multicomplex2_pow(base, multicomplex2_sub(u, jv), multicomplex2_sub(bu, jbv));
+    for (i = 0; i < 4; i++) {
+        result.data[i] = (p.data[i]+q.data[i])/2;
+        result.data[i+4] = ((p.data[i^bit]-q.data[i^bit])/(i & bit ? even : odd))/2;
+    }
+    return result;
+}
+
+static inline multicomplex3
+multicomplex3_square(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_mul(k, a, a);
+}
+
+static inline multicomplex3
+multicomplex3_radd(double a, multicomplex3 b)
+{
+    return multicomplex3_add(multicomplex3_from_re(a), b);
+}
+
+static inline multicomplex3
+multicomplex3_ladd(multicomplex3 a, double b)
+{
+    return multicomplex3_add(a, multicomplex3_from_re(b));
+}
+
+static inline multicomplex3
+multicomplex3_rmul(vec3 k, double a, multicomplex3 b)
+{
+    return multicomplex3_mul(k, multicomplex3_from_re(a), b);
+}
+
+static inline multicomplex3
+multicomplex3_lmul(vec3 k, multicomplex3 a, double b)
+{
+    return multicomplex3_mul(k, a, multicomplex3_from_re(b));
+}
+
+static inline multicomplex3
+multicomplex3_rdiv(vec3 k, double a, multicomplex3 b)
+{
+    return multicomplex3_div(k, multicomplex3_from_re(a), b);
+}
+
+static inline multicomplex3
+multicomplex3_ldiv(vec3 k, multicomplex3 a, double b)
+{
+    return multicomplex3_div(k, a, multicomplex3_from_re(b));
+}
+
+static inline multicomplex3
+multicomplex3_rpow(vec3 k, double a, multicomplex3 b)
+{
+    return multicomplex3_pow(k, multicomplex3_from_re(a), b);
+}
+
+static inline multicomplex3
+multicomplex3_lpow(vec3 k, multicomplex3 a, double b)
+{
+    return multicomplex3_pow(k, a, multicomplex3_from_re(b));
+}
+
+static inline multicomplex3
+multicomplex3_expm1(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_expm1(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_expm1(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_expm1(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_expm1, multicomplex2_expm1_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_log1p(vec3 k, multicomplex3 a)
+{
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1) {
+        return complex3_log1p(a);
+    }
+    if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1) {
+        return splitcomplex3_log1p(a);
+    }
+    if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0) {
+        return dual3_log1p(a);
+    }
+    return multicomplex3_apply(k, a, multicomplex2_log1p, multicomplex2_log1p_deriv1);
+}
+
+static inline multicomplex3
+multicomplex3_mix(vec3 k, multicomplex3 a, multicomplex3 b, double t)
+{
+    multicomplex3 delta = multicomplex3_mul(k, multicomplex3_inv(k, a), b);
+    return multicomplex3_mul(k, a, multicomplex3_lpow(k, delta, t));
+}
+
+/* Derivatives through order 1, for nilpotent extensions at higher levels. */
+static inline multicomplex3
+multicomplex3_exp_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_exp_deriv1, multicomplex2_exp_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_expm1_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_expm1_deriv1, multicomplex2_expm1_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_log_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_log_deriv1, multicomplex2_log_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_log1p_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_log1p_deriv1, multicomplex2_log1p_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_inv_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_inv_deriv1, multicomplex2_inv_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_square_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_square_deriv1, multicomplex2_square_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_sqrt_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sqrt_deriv1, multicomplex2_sqrt_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_sin_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sin_deriv1, multicomplex2_sin_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_cos_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_cos_deriv1, multicomplex2_cos_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_tan_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_tan_deriv1, multicomplex2_tan_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_asin_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_asin_deriv1, multicomplex2_asin_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_acos_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_acos_deriv1, multicomplex2_acos_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_atan_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_atan_deriv1, multicomplex2_atan_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_sinh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sinh_deriv1, multicomplex2_sinh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_cosh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_cosh_deriv1, multicomplex2_cosh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_tanh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_tanh_deriv1, multicomplex2_tanh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_asinh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_asinh_deriv1, multicomplex2_asinh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_acosh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_acosh_deriv1, multicomplex2_acosh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_atanh_deriv1(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_atanh_deriv1, multicomplex2_atanh_deriv2);
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+multicomplex3_lmat(vec3 k, multicomplex3 a, double result[ALGPY_MULTICOMPLEX3_N*ALGPY_MULTICOMPLEX3_N])
+{
+    multicomplex3 coeffs[ALGPY_MULTICOMPLEX3_N * ALGPY_MULTICOMPLEX3_N];
+    int row, col, i;
+    multicomplex3_coeffs(k, coeffs);
+    for (row = 0; row < ALGPY_MULTICOMPLEX3_N; row++) {
+        for (col = 0; col < ALGPY_MULTICOMPLEX3_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_MULTICOMPLEX3_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_MULTICOMPLEX3_N + col].data[row];
+            }
+            result[row * ALGPY_MULTICOMPLEX3_N + col] = value;
+        }
+    }
+}
+
+static inline void
+multicomplex3_rmat(vec3 k, multicomplex3 a, double result[ALGPY_MULTICOMPLEX3_N*ALGPY_MULTICOMPLEX3_N])
+{
+    multicomplex3 coeffs[ALGPY_MULTICOMPLEX3_N * ALGPY_MULTICOMPLEX3_N];
+    int row, col, i;
+    multicomplex3_coeffs(k, coeffs);
+    for (row = 0; row < ALGPY_MULTICOMPLEX3_N; row++) {
+        for (col = 0; col < ALGPY_MULTICOMPLEX3_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_MULTICOMPLEX3_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_MULTICOMPLEX3_N + i].data[col];
+            }
+            result[row * ALGPY_MULTICOMPLEX3_N + col] = value;
+        }
+    }
+}
+
+
+#endif /* ALGPY_MULTICOMPLEX3_H */

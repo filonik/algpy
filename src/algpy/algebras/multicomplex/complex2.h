@@ -7,9 +7,11 @@
 #ifndef ALGPY_COMPLEX2_H
 #define ALGPY_COMPLEX2_H
 
+#include "../../fields/complex.h"
+
 #include <math.h>
 
-#include "../cayleydickson/complex.h"
+#include "complex1.h"
 #include "../../vectorspaces/vec4.h"
 
 #define ALGPY_COMPLEX2_N ALGPY_VEC4_N
@@ -55,10 +57,12 @@ complex2_mul(complex2 x, complex2 y)
 static inline void
 complex2_basis(complex2 result[ALGPY_COMPLEX2_N])
 {
-    result[0] = complex2_make(1, 0, 0, 0);
-    result[1] = complex2_make(0, 1, 0, 0);
-    result[2] = complex2_make(0, 0, 1, 0);
-    result[3] = complex2_make(0, 0, 0, 1);
+    int i, j;
+    for (i = 0; i < ALGPY_COMPLEX2_N; i++) {
+        for (j = 0; j < ALGPY_COMPLEX2_N; j++) {
+            result[i].data[j] = i == j ? 1 : 0;
+        }
+    }
 }
 
 static inline void
@@ -98,10 +102,10 @@ complex2_norm4(complex2 a)
     return complex_norm2(complex2_norm2(a));
 }
 
-static inline complex
+static inline double
 complex2_norm(complex2 a)
 {
-    return complex_root_real(complex2_norm4(a), 4);
+    return sqrt(sqrt(complex2_norm4(a)));
 }
 
 static inline complex2
@@ -135,27 +139,32 @@ complex2_div(complex2 a, complex2 b)
  * Then f(a) = phi+^-1(f(p)) and phi-^-1(f(q)) glued:
  *   u' = (f(p) + f(q)) / 2,  v' = (f(p) - f(q)) / (2i),
  * which gives the components computed below.
+ * When f uses a principal branch, it is selected independently in p and q.
  */
 static inline complex2
-complex2_apply(complex2 a, complex (*f)(complex))
+complex2_apply(complex2 a, complex1 (*f)(complex1))
 {
-    complex p = f(complex_make(a.data[0] - a.data[3], a.data[1] + a.data[2]));
-    complex q = f(complex_make(a.data[0] + a.data[3], a.data[1] - a.data[2]));
-    double d0 = (q.data[0] - p.data[0]) / 2, d1 = (p.data[1] - q.data[1]) / 2;
-    double d3 = (q.data[0] + p.data[0]) / 2, d2 = (p.data[1] + q.data[1]) / 2;
-    return complex2_make(d3, d2, d1, d0);
+    complex1 p = f(complex1_make(a.data[0] - a.data[3], a.data[1] + a.data[2]));
+    complex1 q = f(complex1_make(a.data[0] + a.data[3], a.data[1] - a.data[2]));
+
+    return complex2_make(
+        (q.data[0] + p.data[0]) / 2,
+        (p.data[1] + q.data[1]) / 2,
+        (p.data[1] - q.data[1]) / 2,
+        (q.data[0] - p.data[0]) / 2
+    );
 }
 
 static inline complex2
 complex2_exp(complex2 a)
 {
-    return complex2_apply(a, complex_exp);
+    return complex2_apply(a, complex1_exp);
 }
 
 static inline complex2
 complex2_log(complex2 a)
 {
-    return complex2_apply(a, complex_log);
+    return complex2_apply(a, complex1_log);
 }
 
 static inline complex2
@@ -195,5 +204,261 @@ complex2_eivals(complex2 a, complex result[4])
     result[2] = complex_make(x0 + x3, x1 - x2);
     result[3] = complex_make(x0 + x3, -x1 + x2);
 }
+
+/* Common algebra API. */
+static inline complex2
+complex2_zero(void)
+{
+    return vec4_zero();
+}
+
+static inline int
+complex2_is_real(complex2 a)
+{
+    return vec4_is_real(a);
+}
+
+static inline complex2
+complex2_pos(complex2 a)
+{
+    return vec4_pos(a);
+}
+
+static inline complex2
+complex2_neg(complex2 a)
+{
+    return vec4_neg(a);
+}
+
+static inline complex2
+complex2_add(complex2 a, complex2 b)
+{
+    return vec4_add(a, b);
+}
+
+static inline complex2
+complex2_sub(complex2 a, complex2 b)
+{
+    return vec4_sub(a, b);
+}
+
+static inline int
+complex2_equal(complex2 a, complex2 b)
+{
+    return vec4_all_eq(a, b);
+}
+
+static inline int
+complex2_not_equal(complex2 a, complex2 b)
+{
+    return !complex2_equal(a, b);
+}
+
+static inline complex2
+complex2_re(complex2 a)
+{
+    return complex2_from_re(a.data[0]);
+}
+
+static inline complex2
+complex2_im(complex2 a)
+{
+    return complex2_sub(a, complex2_re(a));
+}
+
+static inline complex2
+complex2_cos(complex2 a)
+{
+    return complex2_apply(a, complex1_cos);
+}
+
+static inline complex2
+complex2_sin(complex2 a)
+{
+    return complex2_apply(a, complex1_sin);
+}
+
+static inline complex2
+complex2_tan(complex2 a)
+{
+    return complex2_apply(a, complex1_tan);
+}
+
+static inline complex2
+complex2_acos(complex2 a)
+{
+    return complex2_apply(a, complex1_acos);
+}
+
+static inline complex2
+complex2_asin(complex2 a)
+{
+    return complex2_apply(a, complex1_asin);
+}
+
+static inline complex2
+complex2_atan(complex2 a)
+{
+    return complex2_apply(a, complex1_atan);
+}
+
+static inline complex2
+complex2_cosh(complex2 a)
+{
+    return complex2_apply(a, complex1_cosh);
+}
+
+static inline complex2
+complex2_sinh(complex2 a)
+{
+    return complex2_apply(a, complex1_sinh);
+}
+
+static inline complex2
+complex2_tanh(complex2 a)
+{
+    return complex2_apply(a, complex1_tanh);
+}
+
+static inline complex2
+complex2_acosh(complex2 a)
+{
+    return complex2_apply(a, complex1_acosh);
+}
+
+static inline complex2
+complex2_asinh(complex2 a)
+{
+    return complex2_apply(a, complex1_asinh);
+}
+
+static inline complex2
+complex2_atanh(complex2 a)
+{
+    return complex2_apply(a, complex1_atanh);
+}
+
+static inline complex2
+complex2_square(complex2 a)
+{
+    return complex2_mul(a, a);
+}
+
+static inline complex2
+complex2_radd(double a, complex2 b)
+{
+    return complex2_add(complex2_from_re(a), b);
+}
+
+static inline complex2
+complex2_ladd(complex2 a, double b)
+{
+    return complex2_add(a, complex2_from_re(b));
+}
+
+static inline complex2
+complex2_rsub(double a, complex2 b)
+{
+    return complex2_sub(complex2_from_re(a), b);
+}
+
+static inline complex2
+complex2_lsub(complex2 a, double b)
+{
+    return complex2_sub(a, complex2_from_re(b));
+}
+
+static inline complex2
+complex2_rmul(double a, complex2 b)
+{
+    return complex2_mul(complex2_from_re(a), b);
+}
+
+static inline complex2
+complex2_lmul(complex2 a, double b)
+{
+    return complex2_mul(a, complex2_from_re(b));
+}
+
+static inline complex2
+complex2_rdiv(double a, complex2 b)
+{
+    return complex2_div(complex2_from_re(a), b);
+}
+
+static inline complex2
+complex2_ldiv(complex2 a, double b)
+{
+    return complex2_div(a, complex2_from_re(b));
+}
+
+static inline complex2
+complex2_rpow(double a, complex2 b)
+{
+    return complex2_pow(complex2_from_re(a), b);
+}
+
+static inline complex2
+complex2_lpow(complex2 a, double b)
+{
+    return complex2_pow(a, complex2_from_re(b));
+}
+
+static inline complex2
+complex2_expm1(complex2 a)
+{
+    return complex2_lsub(complex2_exp(a), 1);
+}
+
+static inline complex2
+complex2_log1p(complex2 a)
+{
+    return complex2_log(complex2_ladd(a, 1));
+}
+
+static inline complex2
+complex2_mix(complex2 a, complex2 b, double t)
+{
+    complex2 delta = complex2_mul(complex2_inv(a), b);
+    return complex2_mul(a, complex2_lpow(delta, t));
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+complex2_lmat(complex2 a, double result[ALGPY_COMPLEX2_N*ALGPY_COMPLEX2_N])
+{
+    complex2 coeffs[ALGPY_COMPLEX2_N * ALGPY_COMPLEX2_N];
+    int row, col, i;
+    complex2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_COMPLEX2_N; row++) {
+        for (col = 0; col < ALGPY_COMPLEX2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_COMPLEX2_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_COMPLEX2_N + col].data[row];
+            }
+            result[row * ALGPY_COMPLEX2_N + col] = value;
+        }
+    }
+}
+
+static inline void
+complex2_rmat(complex2 a, double result[ALGPY_COMPLEX2_N*ALGPY_COMPLEX2_N])
+{
+    complex2 coeffs[ALGPY_COMPLEX2_N * ALGPY_COMPLEX2_N];
+    int row, col, i;
+    complex2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_COMPLEX2_N; row++) {
+        for (col = 0; col < ALGPY_COMPLEX2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_COMPLEX2_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_COMPLEX2_N + i].data[col];
+            }
+            result[row * ALGPY_COMPLEX2_N + col] = value;
+        }
+    }
+}
+
 
 #endif /* ALGPY_COMPLEX2_H */

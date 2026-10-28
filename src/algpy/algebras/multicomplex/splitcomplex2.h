@@ -9,7 +9,7 @@
 
 #include <math.h>
 
-#include "../cayleydickson/complex.h"
+#include "../../fields/complex.h"
 #include "splitcomplex1.h"
 #include "../../vectorspaces/vec4.h"
 
@@ -56,10 +56,12 @@ splitcomplex2_mul(splitcomplex2 x, splitcomplex2 y)
 static inline void
 splitcomplex2_basis(splitcomplex2 result[ALGPY_SPLITCOMPLEX2_N])
 {
-    result[0] = splitcomplex2_make(1, 0, 0, 0);
-    result[1] = splitcomplex2_make(0, 1, 0, 0);
-    result[2] = splitcomplex2_make(0, 0, 1, 0);
-    result[3] = splitcomplex2_make(0, 0, 0, 1);
+    int i, j;
+    for (i = 0; i < ALGPY_SPLITCOMPLEX2_N; i++) {
+        for (j = 0; j < ALGPY_SPLITCOMPLEX2_N; j++) {
+            result[i].data[j] = i == j ? 1 : 0;
+        }
+    }
 }
 
 static inline void
@@ -151,76 +153,101 @@ splitcomplex2_from_components(const double l[4])
         (l[0] - l[1] - l[2] + l[3]) / 4);
 }
 
+/* For a = u + v*e with e*e = +1, apply f to u+v and u-v. */
 static inline splitcomplex2
-splitcomplex2_apply(splitcomplex2 a, double (*f)(double))
+splitcomplex2_apply(splitcomplex2 a, splitcomplex1 (*f)(splitcomplex1))
 {
-    double l[4];
-    int i;
-    splitcomplex2_components(a, l);
-    for (i = 0; i < 4; i++) {
-        l[i] = f(l[i]);
-    }
-    return splitcomplex2_from_components(l);
+    splitcomplex1 p = splitcomplex1_make(
+        a.data[0] + a.data[2],
+        a.data[1] + a.data[3]);
+    splitcomplex1 q = splitcomplex1_make(
+        a.data[0] - a.data[2],
+        a.data[1] - a.data[3]);
+    p = f(p);
+    q = f(q);
+    return splitcomplex2_make(
+        (p.data[0] + q.data[0]) / 2,
+        (p.data[1] + q.data[1]) / 2,
+        (p.data[0] - q.data[0]) / 2,
+        (p.data[1] - q.data[1]) / 2);
 }
 
 static inline splitcomplex2
 splitcomplex2_exp(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, exp);
+    return splitcomplex2_apply(a, splitcomplex1_exp);
 }
 
 static inline splitcomplex2
 splitcomplex2_log(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, log);
+    return splitcomplex2_apply(a, splitcomplex1_log);
 }
 
 static inline splitcomplex2
 splitcomplex2_pow(splitcomplex2 a, splitcomplex2 b)
 {
-    return splitcomplex2_exp(splitcomplex2_mul(splitcomplex2_log(a), b));
+    splitcomplex1 ap = splitcomplex1_make(
+        a.data[0] + a.data[2],
+        a.data[1] + a.data[3]);
+    splitcomplex1 aq = splitcomplex1_make(
+        a.data[0] - a.data[2],
+        a.data[1] - a.data[3]);
+    splitcomplex1 bp = splitcomplex1_make(
+        b.data[0] + b.data[2],
+        b.data[1] + b.data[3]);
+    splitcomplex1 bq = splitcomplex1_make(
+        b.data[0] - b.data[2],
+        b.data[1] - b.data[3]);
+    splitcomplex1 p = splitcomplex1_pow(ap, bp);
+    splitcomplex1 q = splitcomplex1_pow(aq, bq);
+    return splitcomplex2_make(
+        (p.data[0] + q.data[0]) / 2,
+        (p.data[1] + q.data[1]) / 2,
+        (p.data[0] - q.data[0]) / 2,
+        (p.data[1] - q.data[1]) / 2);
 }
 
 static inline splitcomplex2
 splitcomplex2_sqrt(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, sqrt);
+    return splitcomplex2_apply(a, splitcomplex1_sqrt);
 }
 
 static inline splitcomplex2
 splitcomplex2_cos(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, cos);
+    return splitcomplex2_apply(a, splitcomplex1_cos);
 }
 
 static inline splitcomplex2
 splitcomplex2_sin(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, sin);
+    return splitcomplex2_apply(a, splitcomplex1_sin);
 }
 
 static inline splitcomplex2
 splitcomplex2_tan(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, tan);
+    return splitcomplex2_apply(a, splitcomplex1_tan);
 }
 
 static inline splitcomplex2
 splitcomplex2_cosh(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, cosh);
+    return splitcomplex2_apply(a, splitcomplex1_cosh);
 }
 
 static inline splitcomplex2
 splitcomplex2_sinh(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, sinh);
+    return splitcomplex2_apply(a, splitcomplex1_sinh);
 }
 
 static inline splitcomplex2
 splitcomplex2_tanh(splitcomplex2 a)
 {
-    return splitcomplex2_apply(a, tanh);
+    return splitcomplex2_apply(a, splitcomplex1_tanh);
 }
 
 static inline splitcomplex2
@@ -308,5 +335,158 @@ splitcomplex2_eivals(splitcomplex2 a, complex result[4])
         result[i] = complex_make(l[i], 0);
     }
 }
+
+/* Common algebra API. */
+static inline splitcomplex2
+splitcomplex2_zero(void)
+{
+    return vec4_zero();
+}
+
+static inline int
+splitcomplex2_is_real(splitcomplex2 a)
+{
+    return vec4_is_real(a);
+}
+
+static inline splitcomplex2
+splitcomplex2_pos(splitcomplex2 a)
+{
+    return vec4_pos(a);
+}
+
+static inline splitcomplex2
+splitcomplex2_neg(splitcomplex2 a)
+{
+    return vec4_neg(a);
+}
+
+static inline splitcomplex2
+splitcomplex2_add(splitcomplex2 a, splitcomplex2 b)
+{
+    return vec4_add(a, b);
+}
+
+static inline splitcomplex2
+splitcomplex2_sub(splitcomplex2 a, splitcomplex2 b)
+{
+    return vec4_sub(a, b);
+}
+
+static inline int
+splitcomplex2_equal(splitcomplex2 a, splitcomplex2 b)
+{
+    return vec4_all_eq(a, b);
+}
+
+static inline int
+splitcomplex2_not_equal(splitcomplex2 a, splitcomplex2 b)
+{
+    return !splitcomplex2_equal(a, b);
+}
+
+static inline splitcomplex2
+splitcomplex2_re(splitcomplex2 a)
+{
+    return splitcomplex2_from_re(a.data[0]);
+}
+
+static inline splitcomplex2
+splitcomplex2_im(splitcomplex2 a)
+{
+    return splitcomplex2_sub(a, splitcomplex2_re(a));
+}
+
+static inline splitcomplex2
+splitcomplex2_acos(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_acos);
+}
+
+static inline splitcomplex2
+splitcomplex2_asin(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_asin);
+}
+
+static inline splitcomplex2
+splitcomplex2_atan(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_atan);
+}
+
+static inline splitcomplex2
+splitcomplex2_acosh(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_acosh);
+}
+
+static inline splitcomplex2
+splitcomplex2_asinh(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_asinh);
+}
+
+static inline splitcomplex2
+splitcomplex2_atanh(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_atanh);
+}
+
+static inline splitcomplex2
+splitcomplex2_square(splitcomplex2 a)
+{
+    return splitcomplex2_mul(a, a);
+}
+
+static inline splitcomplex2
+splitcomplex2_expm1(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_expm1);
+}
+
+static inline splitcomplex2
+splitcomplex2_log1p(splitcomplex2 a)
+{
+    return splitcomplex2_apply(a, splitcomplex1_log1p);
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+splitcomplex2_lmat(splitcomplex2 a, double result[ALGPY_SPLITCOMPLEX2_N*ALGPY_SPLITCOMPLEX2_N])
+{
+    splitcomplex2 coeffs[ALGPY_SPLITCOMPLEX2_N * ALGPY_SPLITCOMPLEX2_N];
+    int row, col, i;
+    splitcomplex2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_SPLITCOMPLEX2_N; row++) {
+        for (col = 0; col < ALGPY_SPLITCOMPLEX2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_SPLITCOMPLEX2_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_SPLITCOMPLEX2_N + col].data[row];
+            }
+            result[row * ALGPY_SPLITCOMPLEX2_N + col] = value;
+        }
+    }
+}
+
+static inline void
+splitcomplex2_rmat(splitcomplex2 a, double result[ALGPY_SPLITCOMPLEX2_N*ALGPY_SPLITCOMPLEX2_N])
+{
+    splitcomplex2 coeffs[ALGPY_SPLITCOMPLEX2_N * ALGPY_SPLITCOMPLEX2_N];
+    int row, col, i;
+    splitcomplex2_coeffs(coeffs);
+    for (row = 0; row < ALGPY_SPLITCOMPLEX2_N; row++) {
+        for (col = 0; col < ALGPY_SPLITCOMPLEX2_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_SPLITCOMPLEX2_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_SPLITCOMPLEX2_N + i].data[col];
+            }
+            result[row * ALGPY_SPLITCOMPLEX2_N + col] = value;
+        }
+    }
+}
+
 
 #endif /* ALGPY_SPLITCOMPLEX2_H */

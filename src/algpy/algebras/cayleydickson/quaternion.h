@@ -7,7 +7,7 @@
 #ifndef ALGPY_QUATERNION_H
 #define ALGPY_QUATERNION_H
 
-#include "complex.h"
+#include "../../fields/complex.h"
 #include "../../vectorspaces/vec2.h"
 #include "../../vectorspaces/vec4.h"
 
@@ -181,14 +181,6 @@ quaternion_pow(quaternion a, quaternion b)
     return quaternion_exp(quaternion_mul(quaternion_log(a), b));
 }
 
-/*
-// TODO
-static inline quaternion
-quaternion_sqrt(quaternion a)
-{
-}
-*/
-
 static inline quaternion
 quaternion_radd(double a, quaternion b) {
   return vec4_add(quaternion_from_re(a), b);
@@ -266,5 +258,201 @@ quaternion_eivals(quaternion a, complex result[2])
     result[0] = complex_make(a.data[0], -vn);
     result[1] = complex_make(a.data[0], +vn);
 }
+
+/* Common algebra API. Unfinished operations return NaN components. */
+static inline quaternion
+quaternion_zero(void)
+{
+    return vec4_zero();
+}
+
+static inline int
+quaternion_is_real(quaternion a)
+{
+    return vec4_is_real(a);
+}
+
+static inline quaternion
+quaternion_pos(quaternion a)
+{
+    return vec4_pos(a);
+}
+
+static inline quaternion
+quaternion_neg(quaternion a)
+{
+    return vec4_neg(a);
+}
+
+static inline quaternion
+quaternion_add(quaternion a, quaternion b)
+{
+    return vec4_add(a, b);
+}
+
+static inline quaternion
+quaternion_sub(quaternion a, quaternion b)
+{
+    return vec4_sub(a, b);
+}
+
+static inline int
+quaternion_equal(quaternion a, quaternion b)
+{
+    return vec4_all_eq(a, b);
+}
+
+static inline int
+quaternion_not_equal(quaternion a, quaternion b)
+{
+    return !quaternion_equal(a, b);
+}
+
+static inline quaternion
+quaternion_sqrt(quaternion a)
+{
+    /* TODO: implement quaternion_sqrt. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_cos(quaternion a)
+{
+    /* TODO: implement quaternion_cos. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_sin(quaternion a)
+{
+    /* TODO: implement quaternion_sin. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_tan(quaternion a)
+{
+    /* TODO: implement quaternion_tan. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_acos(quaternion a)
+{
+    /* TODO: implement quaternion_acos. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_asin(quaternion a)
+{
+    /* TODO: implement quaternion_asin. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_atan(quaternion a)
+{
+    /* TODO: implement quaternion_atan. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_cosh(quaternion a)
+{
+    /* TODO: implement quaternion_cosh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_sinh(quaternion a)
+{
+    /* TODO: implement quaternion_sinh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_tanh(quaternion a)
+{
+    /* TODO: implement quaternion_tanh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_acosh(quaternion a)
+{
+    /* TODO: implement quaternion_acosh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_asinh(quaternion a)
+{
+    /* TODO: implement quaternion_asinh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_atanh(quaternion a)
+{
+    /* TODO: implement quaternion_atanh. */
+    return quaternion_make(NAN, NAN, NAN, NAN);
+}
+
+static inline quaternion
+quaternion_square(quaternion a)
+{
+    return quaternion_mul(a, a);
+}
+
+static inline quaternion
+quaternion_expm1(quaternion a)
+{
+    return quaternion_lsub(quaternion_exp(a), 1);
+}
+
+static inline quaternion
+quaternion_log1p(quaternion a)
+{
+    return quaternion_log(quaternion_ladd(a, 1));
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+quaternion_lmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_N])
+{
+    quaternion coeffs[ALGPY_QUATERNION_N * ALGPY_QUATERNION_N];
+    int row, col, i;
+    quaternion_coeffs(coeffs);
+    for (row = 0; row < ALGPY_QUATERNION_N; row++) {
+        for (col = 0; col < ALGPY_QUATERNION_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_QUATERNION_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_QUATERNION_N + col].data[row];
+            }
+            result[row * ALGPY_QUATERNION_N + col] = value;
+        }
+    }
+}
+
+static inline void
+quaternion_rmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_N])
+{
+    quaternion coeffs[ALGPY_QUATERNION_N * ALGPY_QUATERNION_N];
+    int row, col, i;
+    quaternion_coeffs(coeffs);
+    for (row = 0; row < ALGPY_QUATERNION_N; row++) {
+        for (col = 0; col < ALGPY_QUATERNION_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_QUATERNION_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_QUATERNION_N + i].data[col];
+            }
+            result[row * ALGPY_QUATERNION_N + col] = value;
+        }
+    }
+}
+
 
 #endif /* ALGPY_QUATERNION_H */

@@ -1,7 +1,7 @@
 #ifndef ALGPY_COMPLEX1_H
 #define ALGPY_COMPLEX1_H
 
-#include "../cayleydickson/complex.h"
+#include "../../fields/complex.h"
 
 typedef complex complex1;
 
@@ -42,5 +42,31 @@ typedef complex complex1;
 #define complex1_sqrt complex_sqrt
 #define complex1_sqrt_real complex_sqrt_real
 #define complex1_root_real complex_root_real
+
+#define complex1_zero complex_zero
+#define complex1_is_real complex_is_real
+#define complex1_pos complex_pos
+#define complex1_neg complex_neg
+#define complex1_add complex_add
+#define complex1_sub complex_sub
+#define complex1_equal complex_equal
+#define complex1_not_equal complex_not_equal
+#define complex1_square complex_square
+#define complex1_norm complex_norm
+#define complex1_acos complex_acos
+#define complex1_asin complex_asin
+#define complex1_atan complex_atan
+#define complex1_acosh complex_acosh
+#define complex1_asinh complex_asinh
+#define complex1_atanh complex_atanh
+#define complex1_expm1 complex_expm1
+#define complex1_log1p complex_log1p
+#define complex1_rpow complex_rpow
+#define complex1_lpow complex_lpow
+#define complex1_mix complex_mix
+
+#define complex1_lmat complex_lmat
+#define complex1_rmat complex_rmat
+
 
 #endif /* ALGPY_COMPLEX1_H */

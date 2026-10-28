@@ -13,8 +13,9 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../_conversions.h"
+
 #include "splitcomplex2.h"
-#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -126,9 +127,9 @@ pysplitcomplex2_richcompare(PyObject *a, PyObject *b, int op)
     }
     switch (op) {
         case Py_EQ:
-            return PyBool_FromLong(vec4_all_eq(x, y));
+            return PyBool_FromLong(splitcomplex2_equal(x, y));
         case Py_NE:
-            return PyBool_FromLong(!vec4_all_eq(x, y));
+            return PyBool_FromLong(!splitcomplex2_equal(x, y));
         default:
             Py_RETURN_NOTIMPLEMENTED;
     }
@@ -150,8 +151,8 @@ pysplitcomplex2_richcompare(PyObject *a, PyObject *b, int op)
         return NEW_SPLITCOMPLEX2(expr(x, y));                                     \
     }
 
-SPLITCOMPLEX2_BINARY(add, vec4_add)
-SPLITCOMPLEX2_BINARY(sub, vec4_sub)
+SPLITCOMPLEX2_BINARY(add, splitcomplex2_add)
+SPLITCOMPLEX2_BINARY(sub, splitcomplex2_sub)
 SPLITCOMPLEX2_BINARY(mul, splitcomplex2_mul)
 SPLITCOMPLEX2_BINARY(div, splitcomplex2_div)
 
@@ -181,13 +182,13 @@ pysplitcomplex2_pow(PyObject *a, PyObject *b, PyObject *mod)
         return NEW_SPLITCOMPLEX2(expr(((PySplitcomplex2 *)self)->v));                  \
     }
 
-SPLITCOMPLEX2_UNARY(pos, vec4_pos)
-SPLITCOMPLEX2_UNARY(neg, vec4_neg)
+SPLITCOMPLEX2_UNARY(pos, splitcomplex2_pos)
+SPLITCOMPLEX2_UNARY(neg, splitcomplex2_neg)
 
 static PyObject *
 pysplitcomplex2_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return PySplitcomplex2_FromValue((PyTypeObject *)cls, vec4_zero());
+    return PySplitcomplex2_FromValue((PyTypeObject *)cls, splitcomplex2_zero());
 }
 
 static PyObject *
@@ -237,13 +238,40 @@ pysplitcomplex2_norm4(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pysplitcomplex2_norm(PyObject *self, PyObject *Py_UNUSED(args))
 {
-    return algpy_norm_to_py(splitcomplex2_norm(((PySplitcomplex2 *)self)->v));
+    complex n = splitcomplex2_norm(((PySplitcomplex2 *)self)->v);
+    return PyComplex_FromDoubles(n.data[0], n.data[1]);
 }
 
 static PyObject *
 pysplitcomplex2_inv(PyObject *self, PyObject *Py_UNUSED(args))
 {
     return NEW_SPLITCOMPLEX2(splitcomplex2_inv(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    splitcomplex2_lmat(((PySplitcomplex2 *)self)->v,
+                     (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
+
+static PyObject *
+pysplitcomplex2_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    splitcomplex2_rmat(((PySplitcomplex2 *)self)->v,
+                     (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
 }
 
 static PyObject *
@@ -317,16 +345,182 @@ pysplitcomplex2_reduce(PyObject *self, PyObject *Py_UNUSED(args))
                          v.data[0], v.data[1], v.data[2], v.data[3]);
 }
 
+static PyObject *
+pysplitcomplex2_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_square(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_expm1(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_log1p(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_asin(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_acos(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_atan(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_asinh(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_acosh(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_atanh(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_re(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_im(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_real(PyObject *self, void *closure)
+{
+    return pysplitcomplex2_re(self, NULL);
+}
+
+static PyObject *
+pysplitcomplex2_imag(PyObject *self, void *closure)
+{
+    return pysplitcomplex2_im(self, NULL);
+}
+
+static PyGetSetDef pysplitcomplex2_getset[] = {
+    {"real", pysplitcomplex2_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pysplitcomplex2_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pysplitcomplex2_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(splitcomplex2_is_real(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(splitcomplex2_to_re(((PySplitcomplex2 *)self)->v));
+}
+
+static PyObject *
+pysplitcomplex2_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PySplitcomplex2_FromValue((PyTypeObject *)cls, splitcomplex2_from_re(a));
+}
+
+static PyObject *
+pysplitcomplex2_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    splitcomplex2 b;
+    double t;
+    int r;
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = splitcomplex2_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PySplitcomplex2_FromValue(Py_TYPE(self),
+        splitcomplex2_mix(((PySplitcomplex2 *)self)->v, b, t));
+}
+
+static PyObject *
+pysplitcomplex2_to_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_to_float(args, kwargs, npy_splitcomplex2, 4);
+}
+
+static PyObject *
+pysplitcomplex2_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_from_float(args, kwargs, npy_splitcomplex2, 4);
+}
+
 static PyMethodDef pysplitcomplex2_methods[] = {
+    {"to_float", (PyCFunction)pysplitcomplex2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pysplitcomplex2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pysplitcomplex2_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pysplitcomplex2_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pysplitcomplex2_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pysplitcomplex2_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"square", pysplitcomplex2_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"expm1", pysplitcomplex2_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log1p", pysplitcomplex2_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"asin", pysplitcomplex2_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pysplitcomplex2_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pysplitcomplex2_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"asinh", pysplitcomplex2_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pysplitcomplex2_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pysplitcomplex2_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pysplitcomplex2_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pysplitcomplex2_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pysplitcomplex2_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pysplitcomplex2_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pysplitcomplex2_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pysplitcomplex2_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pysplitcomplex2_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pysplitcomplex2_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pysplitcomplex2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pysplitcomplex2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pysplitcomplex2_norm2, METH_NOARGS, "Squared norm (a dual pair)."},
     {"norm4", pysplitcomplex2_norm4, METH_NOARGS, "Fourth power of the norm."},
-    {"norm", pysplitcomplex2_norm, METH_NOARGS, "Norm."},
+    {"norm", pysplitcomplex2_norm, METH_NOARGS, "Norm as a Python complex."},
     {"inv", pysplitcomplex2_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pysplitcomplex2_conjugate, METH_NOARGS, "Conjugate of the e1 part."},
+    {"lmat", pysplitcomplex2_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pysplitcomplex2_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pysplitcomplex2_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pysplitcomplex2_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pysplitcomplex2_exp, METH_NOARGS, "exp."},
@@ -404,6 +598,7 @@ static PyType_Slot pysplitcomplex2_slots[] = {
     {Py_tp_doc, (void *)"Bi-split-complex number with float64 components"},
     {Py_tp_richcompare, pysplitcomplex2_richcompare},
     {Py_tp_methods, pysplitcomplex2_methods},
+    {Py_tp_getset, pysplitcomplex2_getset},
     {Py_sq_length, pysplitcomplex2_length},
     {Py_sq_item, pysplitcomplex2_item},
     {Py_mp_subscript, pysplitcomplex2_subscript},
@@ -527,7 +722,7 @@ static PyArray_DescrProto pysplitcomplex2_descr_proto = {
         splitcomplex2 *dst = (splitcomplex2 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = splitcomplex2_make((double)src[i], 0, 0, 0);                      \
+            dst[i] = splitcomplex2_from_re((double)src[i]);                      \
         }                                                                    \
     }
 
@@ -602,18 +797,6 @@ loop_splitcomplex2_binary(char **args, npy_intp const *dims,
     }
 }
 
-static int
-splitcomplex2_equal(splitcomplex2 a, splitcomplex2 b)
-{
-    return vec4_all_eq(a, b);
-}
-
-static int
-splitcomplex2_not_equal(splitcomplex2 a, splitcomplex2 b)
-{
-    return !vec4_all_eq(a, b);
-}
-
 static void
 loop_splitcomplex2_predicate(char **args, npy_intp const *dims,
                         npy_intp const *steps, void *data)
@@ -657,42 +840,36 @@ pysplitcomplex2_register_loop(PyObject *numpy, const char *name,
 static int
 pysplitcomplex2_register_ufuncs(PyObject *numpy)
 {
-    return pysplitcomplex2_register_loop(numpy, "add", loop_splitcomplex2_binary, 3, 0,
-                                    vec4_add) ||
-        pysplitcomplex2_register_loop(numpy, "subtract", loop_splitcomplex2_binary, 3, 0,
-                                 vec4_sub) ||
-        pysplitcomplex2_register_loop(numpy, "multiply", loop_splitcomplex2_binary, 3, 0,
-                                 splitcomplex2_mul) ||
-        pysplitcomplex2_register_loop(numpy, "divide", loop_splitcomplex2_binary, 3, 0,
-                                 splitcomplex2_div) ||
-        pysplitcomplex2_register_loop(numpy, "positive", loop_splitcomplex2_unary, 2, 0,
-                                 vec4_pos) ||
-        pysplitcomplex2_register_loop(numpy, "negative", loop_splitcomplex2_unary, 2, 0,
-                                 vec4_neg) ||
-        pysplitcomplex2_register_loop(numpy, "power", loop_splitcomplex2_binary, 3, 0,
-                                 splitcomplex2_pow) ||
-        pysplitcomplex2_register_loop(numpy, "exp", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_exp) ||
-        pysplitcomplex2_register_loop(numpy, "log", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_log) ||
-        pysplitcomplex2_register_loop(numpy, "sqrt", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_sqrt) ||
-        pysplitcomplex2_register_loop(numpy, "sin", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_sin) ||
-        pysplitcomplex2_register_loop(numpy, "cos", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_cos) ||
-        pysplitcomplex2_register_loop(numpy, "tan", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_tan) ||
-        pysplitcomplex2_register_loop(numpy, "sinh", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_sinh) ||
-        pysplitcomplex2_register_loop(numpy, "cosh", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_cosh) ||
-        pysplitcomplex2_register_loop(numpy, "tanh", loop_splitcomplex2_unary, 2, 0,
-                                 splitcomplex2_tanh) ||
-        pysplitcomplex2_register_loop(numpy, "equal", loop_splitcomplex2_predicate, 3, 1,
-                                 splitcomplex2_equal) ||
-        pysplitcomplex2_register_loop(numpy, "not_equal", loop_splitcomplex2_predicate, 3, 1,
-                                 splitcomplex2_not_equal)
+    return
+        pysplitcomplex2_register_loop(numpy, "add", loop_splitcomplex2_binary, 3, 0, splitcomplex2_add) ||
+        pysplitcomplex2_register_loop(numpy, "subtract", loop_splitcomplex2_binary, 3, 0, splitcomplex2_sub) ||
+        pysplitcomplex2_register_loop(numpy, "multiply", loop_splitcomplex2_binary, 3, 0, splitcomplex2_mul) ||
+        pysplitcomplex2_register_loop(numpy, "divide", loop_splitcomplex2_binary, 3, 0, splitcomplex2_div) ||
+        pysplitcomplex2_register_loop(numpy, "power", loop_splitcomplex2_binary, 3, 0, splitcomplex2_pow) ||
+        pysplitcomplex2_register_loop(numpy, "positive", loop_splitcomplex2_unary, 2, 0, splitcomplex2_pos) ||
+        pysplitcomplex2_register_loop(numpy, "negative", loop_splitcomplex2_unary, 2, 0, splitcomplex2_neg) ||
+        pysplitcomplex2_register_loop(numpy, "conjugate", loop_splitcomplex2_unary, 2, 0, splitcomplex2_conjugate) ||
+        pysplitcomplex2_register_loop(numpy, "reciprocal", loop_splitcomplex2_unary, 2, 0, splitcomplex2_inv) ||
+        pysplitcomplex2_register_loop(numpy, "square", loop_splitcomplex2_unary, 2, 0, splitcomplex2_square) ||
+        pysplitcomplex2_register_loop(numpy, "exp", loop_splitcomplex2_unary, 2, 0, splitcomplex2_exp) ||
+        pysplitcomplex2_register_loop(numpy, "expm1", loop_splitcomplex2_unary, 2, 0, splitcomplex2_expm1) ||
+        pysplitcomplex2_register_loop(numpy, "log", loop_splitcomplex2_unary, 2, 0, splitcomplex2_log) ||
+        pysplitcomplex2_register_loop(numpy, "log1p", loop_splitcomplex2_unary, 2, 0, splitcomplex2_log1p) ||
+        pysplitcomplex2_register_loop(numpy, "sqrt", loop_splitcomplex2_unary, 2, 0, splitcomplex2_sqrt) ||
+        pysplitcomplex2_register_loop(numpy, "sin", loop_splitcomplex2_unary, 2, 0, splitcomplex2_sin) ||
+        pysplitcomplex2_register_loop(numpy, "cos", loop_splitcomplex2_unary, 2, 0, splitcomplex2_cos) ||
+        pysplitcomplex2_register_loop(numpy, "tan", loop_splitcomplex2_unary, 2, 0, splitcomplex2_tan) ||
+        pysplitcomplex2_register_loop(numpy, "arcsin", loop_splitcomplex2_unary, 2, 0, splitcomplex2_asin) ||
+        pysplitcomplex2_register_loop(numpy, "arccos", loop_splitcomplex2_unary, 2, 0, splitcomplex2_acos) ||
+        pysplitcomplex2_register_loop(numpy, "arctan", loop_splitcomplex2_unary, 2, 0, splitcomplex2_atan) ||
+        pysplitcomplex2_register_loop(numpy, "sinh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_sinh) ||
+        pysplitcomplex2_register_loop(numpy, "cosh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_cosh) ||
+        pysplitcomplex2_register_loop(numpy, "tanh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_tanh) ||
+        pysplitcomplex2_register_loop(numpy, "arcsinh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_asinh) ||
+        pysplitcomplex2_register_loop(numpy, "arccosh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_acosh) ||
+        pysplitcomplex2_register_loop(numpy, "arctanh", loop_splitcomplex2_unary, 2, 0, splitcomplex2_atanh) ||
+        pysplitcomplex2_register_loop(numpy, "equal", loop_splitcomplex2_predicate, 3, 1, splitcomplex2_equal) ||
+        pysplitcomplex2_register_loop(numpy, "not_equal", loop_splitcomplex2_predicate, 3, 1, splitcomplex2_not_equal)
         ? -1 : 0;
 }
 
@@ -745,6 +922,9 @@ PyInit__splitcomplex2(void)
         goto fail;
     }
     Py_DECREF(descr);
+    if (algpy_set_dimension(PySplitcomplex2_Type, 4) < 0) {
+        goto fail;
+    }
     if (pysplitcomplex2_register_casts() < 0 ||
             pysplitcomplex2_register_ufuncs(numpy) < 0 ||
             PyModule_AddObjectRef(m, "splitcomplex2", PySplitcomplex2_Type) < 0) {

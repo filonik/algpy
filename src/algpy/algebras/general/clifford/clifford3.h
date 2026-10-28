@@ -5,7 +5,7 @@
 
 #include <math.h>
 
-#include "../../cayleydickson/complex.h"
+#include "../../../fields/complex.h"
 #include "../../../vectorspaces/vec3.h"
 #include "../../../vectorspaces/vec8.h"
 
@@ -241,5 +241,276 @@ clifford3_eivals(vec3 k, clifford3 a, complex result[4])
                                           (tau.data[1] + root.data[1]) / 2);
     }
 }
+
+/* Common algebra API. Unfinished operations return NaN components. */
+static inline clifford3
+clifford3_zero(void)
+{
+    return vec8_zero();
+}
+
+static inline int
+clifford3_is_real(clifford3 a)
+{
+    return vec8_is_real(a);
+}
+
+static inline clifford3
+clifford3_pos(clifford3 a)
+{
+    return vec8_pos(a);
+}
+
+static inline clifford3
+clifford3_neg(clifford3 a)
+{
+    return vec8_neg(a);
+}
+
+static inline clifford3
+clifford3_add(clifford3 a, clifford3 b)
+{
+    return vec8_add(a, b);
+}
+
+static inline clifford3
+clifford3_sub(clifford3 a, clifford3 b)
+{
+    return vec8_sub(a, b);
+}
+
+static inline int
+clifford3_equal(clifford3 a, clifford3 b)
+{
+    return vec8_all_eq(a, b);
+}
+
+static inline int
+clifford3_not_equal(clifford3 a, clifford3 b)
+{
+    return !clifford3_equal(a, b);
+}
+
+static inline clifford3
+clifford3_re(clifford3 a)
+{
+    return clifford3_from_re(a.data[0]);
+}
+
+static inline clifford3
+clifford3_im(clifford3 a)
+{
+    return clifford3_sub(a, clifford3_re(a));
+}
+
+static inline clifford3
+clifford3_exp(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_exp. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_log(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_log. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_sqrt(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_sqrt. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_cos(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_cos. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_sin(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_sin. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_tan(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_tan. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_acos(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_acos. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_asin(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_asin. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_atan(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_atan. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_cosh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_cosh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_sinh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_sinh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_tanh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_tanh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_acosh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_acosh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_asinh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_asinh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_atanh(vec3 k, clifford3 a)
+{
+    /* TODO: implement clifford3_atanh. */
+    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+}
+
+static inline clifford3
+clifford3_pow(vec3 k, clifford3 a, clifford3 b)
+{
+    return clifford3_exp(k, clifford3_mul(k, clifford3_log(k, a), b));
+}
+
+static inline clifford3
+clifford3_square(vec3 k, clifford3 a)
+{
+    return clifford3_mul(k, a, a);
+}
+
+static inline clifford3
+clifford3_rmul(vec3 k, double a, clifford3 b)
+{
+    return clifford3_mul(k, clifford3_from_re(a), b);
+}
+
+static inline clifford3
+clifford3_lmul(vec3 k, clifford3 a, double b)
+{
+    return clifford3_mul(k, a, clifford3_from_re(b));
+}
+
+static inline clifford3
+clifford3_rdiv(vec3 k, double a, clifford3 b)
+{
+    return clifford3_div(k, clifford3_from_re(a), b);
+}
+
+static inline clifford3
+clifford3_ldiv(vec3 k, clifford3 a, double b)
+{
+    return clifford3_div(k, a, clifford3_from_re(b));
+}
+
+static inline clifford3
+clifford3_rpow(vec3 k, double a, clifford3 b)
+{
+    return clifford3_pow(k, clifford3_from_re(a), b);
+}
+
+static inline clifford3
+clifford3_lpow(vec3 k, clifford3 a, double b)
+{
+    return clifford3_pow(k, a, clifford3_from_re(b));
+}
+
+static inline clifford3
+clifford3_expm1(vec3 k, clifford3 a)
+{
+    return clifford3_lsub(clifford3_exp(k, a), 1);
+}
+
+static inline clifford3
+clifford3_log1p(vec3 k, clifford3 a)
+{
+    return clifford3_log(k, clifford3_ladd(a, 1));
+}
+
+static inline clifford3
+clifford3_mix(vec3 k, clifford3 a, clifford3 b, double t)
+{
+    clifford3 delta = clifford3_mul(k, clifford3_inv(k, a), b);
+    return clifford3_mul(k, a, clifford3_lpow(k, delta, t));
+}
+
+/* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
+ * With C[i,j,k] the k-th coefficient of e_i*e_j:
+ * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+static inline void
+clifford3_lmat(vec3 k, clifford3 a, double result[ALGPY_CLIFFORD3_N*ALGPY_CLIFFORD3_N])
+{
+    clifford3 coeffs[ALGPY_CLIFFORD3_N * ALGPY_CLIFFORD3_N];
+    int row, col, i;
+    clifford3_coeffs(k, coeffs);
+    for (row = 0; row < ALGPY_CLIFFORD3_N; row++) {
+        for (col = 0; col < ALGPY_CLIFFORD3_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_CLIFFORD3_N; i++) {
+                value += a.data[i] * coeffs[i * ALGPY_CLIFFORD3_N + col].data[row];
+            }
+            result[row * ALGPY_CLIFFORD3_N + col] = value;
+        }
+    }
+}
+
+static inline void
+clifford3_rmat(vec3 k, clifford3 a, double result[ALGPY_CLIFFORD3_N*ALGPY_CLIFFORD3_N])
+{
+    clifford3 coeffs[ALGPY_CLIFFORD3_N * ALGPY_CLIFFORD3_N];
+    int row, col, i;
+    clifford3_coeffs(k, coeffs);
+    for (row = 0; row < ALGPY_CLIFFORD3_N; row++) {
+        for (col = 0; col < ALGPY_CLIFFORD3_N; col++) {
+            double value = 0;
+            for (i = 0; i < ALGPY_CLIFFORD3_N; i++) {
+                value += a.data[i] * coeffs[row * ALGPY_CLIFFORD3_N + i].data[col];
+            }
+            result[row * ALGPY_CLIFFORD3_N + col] = value;
+        }
+    }
+}
+
 
 #endif /* ALGPY_CLIFFORD3_H */

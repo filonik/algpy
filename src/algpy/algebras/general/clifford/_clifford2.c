@@ -19,7 +19,7 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
-#include "../../norm.h"
+#include "../../../_conversions.h"
 
 #include "clifford2.h"
 
@@ -35,7 +35,6 @@ typedef struct {
     PyObject_HEAD
     clifford2 v;
 } PyCL2;
-
 
 static Info *
 info_of_type(PyTypeObject *type)
@@ -169,7 +168,7 @@ pycl2_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec4_all_eq(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(clifford2_equal(x, y) == (op == Py_EQ));
 }
 
 #define CL2_BINARY(name, expr)                                             \
@@ -192,21 +191,21 @@ pycl2_richcompare(PyObject *a, PyObject *b, int op)
         return cl2_from_value((PyTypeObject *)info->type, expr);           \
     }
 
-CL2_BINARY(add, vec4_add(x, y))
-CL2_BINARY(sub, vec4_sub(x, y))
+CL2_BINARY(add, clifford2_add(x, y))
+CL2_BINARY(sub, clifford2_sub(x, y))
 CL2_BINARY(mul, clifford2_mul(info->k, x, y))
 CL2_BINARY(div, clifford2_div(info->k, x, y))
 
 static PyObject *
 pycl2_pos(PyObject *self)
 {
-    return cl2_from_value(Py_TYPE(self), vec4_pos(((PyCL2 *)self)->v));
+    return cl2_from_value(Py_TYPE(self), clifford2_pos(((PyCL2 *)self)->v));
 }
 
 static PyObject *
 pycl2_neg(PyObject *self)
 {
-    return cl2_from_value(Py_TYPE(self), vec4_neg(((PyCL2 *)self)->v));
+    return cl2_from_value(Py_TYPE(self), clifford2_neg(((PyCL2 *)self)->v));
 }
 
 static int
@@ -225,7 +224,7 @@ pycl2_conjugate(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pycl2_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return cl2_from_value((PyTypeObject *)cls, vec4_zero());
+    return cl2_from_value((PyTypeObject *)cls, clifford2_zero());
 }
 
 static PyObject *
@@ -235,6 +234,42 @@ pycl2_one(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *rebuild_func = NULL;
+
+static PyObject *
+pycl2_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    clifford2_lmat(info->k, ((PyCL2 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
+
+static PyObject *
+pycl2_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    clifford2_rmat(info->k, ((PyCL2 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
 
 static PyObject *
 pycl2_minpoly(PyObject *self, PyObject *Py_UNUSED(args))
@@ -334,16 +369,341 @@ pycl2_norm(PyObject *self, PyObject *Py_UNUSED(args))
     if (info == NULL) {
         return NULL;
     }
-    return algpy_norm_to_py(complex_root_real(clifford2_norm2(info->k, ((PyCL2 *)self)->v), 2));
+    complex n = clifford2_norm(info->k, ((PyCL2 *)self)->v);
+    return PyComplex_FromDoubles(n.data[0], n.data[1]);
+}
+
+static PyObject *
+pycl2_inv(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_inv(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_square(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_exp(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_exp(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_expm1(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_log(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_log(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_log1p(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_sqrt(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_sqrt(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_sin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_sin(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_cos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_cos(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_tan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_tan(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_asin(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_acos(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_atan(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_sinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_sinh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_cosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_cosh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_tanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_tanh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_asinh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_acosh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self), clifford2_atanh(info->k, ((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return cl2_from_value(Py_TYPE(self), clifford2_re(((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return cl2_from_value(Py_TYPE(self), clifford2_im(((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_real(PyObject *self, void *closure)
+{
+    return pycl2_re(self, NULL);
+}
+
+static PyObject *
+pycl2_imag(PyObject *self, void *closure)
+{
+    return pycl2_im(self, NULL);
+}
+
+static PyGetSetDef pycl2_getset[] = {
+    {"real", pycl2_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pycl2_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pycl2_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(clifford2_is_real(((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(clifford2_to_re(((PyCL2 *)self)->v));
+}
+
+static PyObject *
+pycl2_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return cl2_from_value((PyTypeObject *)cls, clifford2_from_re(a));
+}
+
+static PyObject *
+pycl2_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    clifford2 b;
+    double t;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = cl2_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return cl2_from_value(Py_TYPE(self),
+        clifford2_mix(info->k, ((PyCL2 *)self)->v, b, t));
+}
+
+static PyObject *
+pycl2_to_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_to_float(args, kwargs, info->typenum, 4);
+}
+
+static PyObject *
+pycl2_from_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_from_float(args, kwargs, info->typenum, 4);
 }
 
 static PyMethodDef pycl2_methods[] = {
+    {"to_float", (PyCFunction)pycl2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pycl2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pycl2_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pycl2_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pycl2_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pycl2_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"inv", pycl2_inv, METH_NOARGS, "inv. See the C header for TODO status."},
+    {"square", pycl2_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"exp", pycl2_exp, METH_NOARGS, "exp. See the C header for TODO status."},
+    {"expm1", pycl2_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log", pycl2_log, METH_NOARGS, "log. See the C header for TODO status."},
+    {"log1p", pycl2_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"sqrt", pycl2_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
+    {"sin", pycl2_sin, METH_NOARGS, "sin. See the C header for TODO status."},
+    {"cos", pycl2_cos, METH_NOARGS, "cos. See the C header for TODO status."},
+    {"tan", pycl2_tan, METH_NOARGS, "tan. See the C header for TODO status."},
+    {"asin", pycl2_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pycl2_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pycl2_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"sinh", pycl2_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
+    {"cosh", pycl2_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
+    {"tanh", pycl2_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
+    {"asinh", pycl2_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pycl2_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pycl2_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pycl2_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pycl2_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pycl2_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pycl2_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pycl2_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pycl2_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pycl2_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pycl2_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pycl2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycl2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycl2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycl2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
-    {"norm", pycl2_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
+    {"norm", pycl2_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycl2_conjugate, METH_NOARGS, "Conjugate."},
+    {"lmat", pycl2_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pycl2_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pycl2_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pycl2_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pycl2_reduce, METH_NOARGS, "Support for pickle."},
@@ -402,6 +762,29 @@ pycl2_dealloc(PyObject *self)
     Py_DECREF(tp);
 }
 
+static PyObject *
+pycl2_pow(PyObject *a, PyObject *b, PyObject *mod)
+{
+    clifford2 x, y;
+    int r;
+    Info *info = binary_info(a, b);
+    if (info == NULL) {
+        return NULL;
+    }
+    if (mod != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "clifford2 does not support modular power");
+        return NULL;
+    }
+    if ((r = cl2_from_object(info, a, &x)) <= 0 ||
+            (r = cl2_from_object(info, b, &y)) <= 0) {
+        if (r < 0) {
+            return NULL;
+        }
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    return cl2_from_value((PyTypeObject *)info->type, clifford2_pow(info->k, x, y));
+}
+
 static PyType_Slot pycl2_slots[] = {
     {Py_tp_dealloc, pycl2_dealloc},
     {Py_tp_traverse, pycl2_traverse},
@@ -413,6 +796,7 @@ static PyType_Slot pycl2_slots[] = {
     {Py_tp_doc, (void *)"Multicomplex number with float64 components"},
     {Py_tp_richcompare, pycl2_richcompare},
     {Py_tp_methods, pycl2_methods},
+    {Py_tp_getset, pycl2_getset},
     {Py_sq_length, pycl2_length},
     {Py_sq_item, pycl2_item},
     {Py_mp_subscript, pycl2_subscript},
@@ -421,6 +805,7 @@ static PyType_Slot pycl2_slots[] = {
     {Py_nb_subtract, pycl2_sub},
     {Py_nb_multiply, pycl2_mul},
     {Py_nb_true_divide, pycl2_div},
+    {Py_nb_power, (void *)pycl2_pow},
     {Py_nb_positive, pycl2_pos},
     {Py_nb_negative, pycl2_neg},
     {Py_nb_bool, pycl2_bool},
@@ -551,7 +936,7 @@ typedef struct { char c; clifford2 v; } align_test;
         clifford2 *dst = (clifford2 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = clifford2_make((double)src[i], 0, 0, 0);                \
+            dst[i] = clifford2_from_re((double)src[i]);                \
         }                                                                  \
     }
 
@@ -599,18 +984,19 @@ register_casts(int typenum)
 typedef struct Op {
     const vec2 *k;
     clifford2 (*unary)(clifford2);
+    clifford2 (*unary_k)(vec2, clifford2);
     clifford2 (*binary)(vec2, clifford2, clifford2);
     int (*pred)(clifford2, clifford2);
 } Op;
 
 static clifford2 op_add(vec2 k, clifford2 a, clifford2 b)
-{ return vec4_add(a, b); }
+{ return clifford2_add(a, b); }
 static clifford2 op_sub(vec2 k, clifford2 a, clifford2 b)
-{ return vec4_sub(a, b); }
+{ return clifford2_sub(a, b); }
 static int op_equal(clifford2 a, clifford2 b)
-{ return vec4_all_eq(a, b); }
+{ return clifford2_equal(a, b); }
 static int op_not_equal(clifford2 a, clifford2 b)
-{ return !vec4_all_eq(a, b); }
+{ return !clifford2_equal(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -623,6 +1009,22 @@ loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
         clifford2 a, r;
         memcpy(&a, in, sizeof(a));
         r = op->unary(a);
+        memcpy(out, &r, sizeof(r));
+        in += steps[0];
+        out += steps[1];
+    }
+}
+
+static void
+loop_unary_k(char **args, npy_intp const *dims, npy_intp const *steps, void *data)
+{
+    Op *op = (Op *)data;
+    char *in = args[0], *out = args[1];
+    npy_intp i;
+    for (i = 0; i < dims[0]; i++) {
+        clifford2 a, r;
+        memcpy(&a, in, sizeof(a));
+        r = op->unary_k(*op->k, a);
         memcpy(out, &r, sizeof(r));
         in += steps[0];
         out += steps[1];
@@ -700,49 +1102,47 @@ register_loop(Info *info, PyObject *numpy, const char *name,
 static int
 register_ufuncs(Info *info, PyObject *numpy)
 {
-    Op none = {NULL, NULL, NULL, NULL};
+    Op none = {NULL, NULL, NULL, NULL, NULL};
     Op o;
 #define BIN(name, f) (o = none, o.binary = f, register_loop(info, numpy, name, loop_binary, 3, 0, o))
 #define UN(name, f) (o = none, o.unary = f, register_loop(info, numpy, name, loop_unary, 2, 0, o))
+#define UNK(name, f) (o = none, o.unary_k = f, register_loop(info, numpy, name, loop_unary_k, 2, 0, o))
 #define PRED(name, f) (o = none, o.pred = f, register_loop(info, numpy, name, loop_predicate, 3, 1, o))
     return
-        BIN("add", op_add) || BIN("subtract", op_sub) ||
+        BIN("add", op_add) ||
+        BIN("subtract", op_sub) ||
         BIN("multiply", clifford2_mul) ||
         BIN("divide", clifford2_div) ||
-        UN("positive", vec4_pos) || UN("negative", vec4_neg) ||
-        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
+        BIN("power", clifford2_pow) ||
+        UN("positive", clifford2_pos) ||
+        UN("negative", clifford2_neg) ||
+        UN("conjugate", clifford2_conjugate) ||
+        UNK("reciprocal", clifford2_inv) ||
+        UNK("square", clifford2_square) ||
+        UNK("exp", clifford2_exp) ||
+        UNK("expm1", clifford2_expm1) ||
+        UNK("log", clifford2_log) ||
+        UNK("log1p", clifford2_log1p) ||
+        UNK("sqrt", clifford2_sqrt) ||
+        UNK("sin", clifford2_sin) ||
+        UNK("cos", clifford2_cos) ||
+        UNK("tan", clifford2_tan) ||
+        UNK("arcsin", clifford2_asin) ||
+        UNK("arccos", clifford2_acos) ||
+        UNK("arctan", clifford2_atan) ||
+        UNK("sinh", clifford2_sinh) ||
+        UNK("cosh", clifford2_cosh) ||
+        UNK("tanh", clifford2_tanh) ||
+        UNK("arcsinh", clifford2_asinh) ||
+        UNK("arccosh", clifford2_acosh) ||
+        UNK("arctanh", clifford2_atanh) ||
+        PRED("equal", op_equal) ||
+        PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN
+#undef UNK
 #undef PRED
-}
-
-static int
-register_conversions(PyObject *type, int n)
-{
-    PyObject *module, *attach, *result, *size;
-    module = PyImport_ImportModule("algpy.algebras._conversions");
-    if (module == NULL) {
-        return -1;
-    }
-    attach = PyObject_GetAttrString(module, "attach");
-    Py_DECREF(module);
-    if (attach == NULL) {
-        return -1;
-    }
-    size = PyLong_FromLong(n);
-    if (size == NULL) {
-        Py_DECREF(attach);
-        return -1;
-    }
-    result = PyObject_CallFunctionObjArgs(attach, type, size, NULL);
-    Py_DECREF(size);
-    Py_DECREF(attach);
-    if (result == NULL) {
-        return -1;
-    }
-    Py_DECREF(result);
-    return 0;
 }
 
 /*
@@ -879,7 +1279,7 @@ create_type(double k0, double k1)
     }
     Py_DECREF(descr_obj);
 
-    if (register_conversions(type, 4) < 0) {
+    if (algpy_set_dimension(type, 4) < 0) {
         goto fail;
     }
 

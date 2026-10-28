@@ -19,4 +19,52 @@ typedef multicomplex1 cayleydickson1;
 #define cayleydickson1_minpoly multicomplex1_minpoly
 #define cayleydickson1_eivals multicomplex1_eivals
 
+#define ALGPY_CAYLEYDICKSON1_N ALGPY_MULTICOMPLEX1_N
+
+#define cayleydickson1_zero multicomplex1_zero
+#define cayleydickson1_re multicomplex1_re
+#define cayleydickson1_im multicomplex1_im
+#define cayleydickson1_is_real multicomplex1_is_real
+#define cayleydickson1_pos multicomplex1_pos
+#define cayleydickson1_neg multicomplex1_neg
+#define cayleydickson1_add multicomplex1_add
+#define cayleydickson1_sub multicomplex1_sub
+#define cayleydickson1_equal multicomplex1_equal
+#define cayleydickson1_not_equal multicomplex1_not_equal
+#define cayleydickson1_pow multicomplex1_pow
+#define cayleydickson1_square multicomplex1_square
+#define cayleydickson1_norm multicomplex1_norm
+#define cayleydickson1_exp multicomplex1_exp
+#define cayleydickson1_log multicomplex1_log
+#define cayleydickson1_sqrt multicomplex1_sqrt
+#define cayleydickson1_cos multicomplex1_cos
+#define cayleydickson1_sin multicomplex1_sin
+#define cayleydickson1_tan multicomplex1_tan
+#define cayleydickson1_acos multicomplex1_acos
+#define cayleydickson1_asin multicomplex1_asin
+#define cayleydickson1_atan multicomplex1_atan
+#define cayleydickson1_cosh multicomplex1_cosh
+#define cayleydickson1_sinh multicomplex1_sinh
+#define cayleydickson1_tanh multicomplex1_tanh
+#define cayleydickson1_acosh multicomplex1_acosh
+#define cayleydickson1_asinh multicomplex1_asinh
+#define cayleydickson1_atanh multicomplex1_atanh
+#define cayleydickson1_expm1 multicomplex1_expm1
+#define cayleydickson1_log1p multicomplex1_log1p
+#define cayleydickson1_radd multicomplex1_radd
+#define cayleydickson1_ladd multicomplex1_ladd
+#define cayleydickson1_rsub multicomplex1_rsub
+#define cayleydickson1_lsub multicomplex1_lsub
+#define cayleydickson1_rmul multicomplex1_rmul
+#define cayleydickson1_lmul multicomplex1_lmul
+#define cayleydickson1_rdiv multicomplex1_rdiv
+#define cayleydickson1_ldiv multicomplex1_ldiv
+#define cayleydickson1_rpow multicomplex1_rpow
+#define cayleydickson1_lpow multicomplex1_lpow
+#define cayleydickson1_mix multicomplex1_mix
+
+#define cayleydickson1_lmat multicomplex1_lmat
+#define cayleydickson1_rmat multicomplex1_rmat
+
+
 #endif /* ALGPY_CAYLEYDICKSON1_H */

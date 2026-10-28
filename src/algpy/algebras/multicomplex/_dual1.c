@@ -13,8 +13,9 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../_conversions.h"
+
 #include "dual1.h"
-#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -147,8 +148,8 @@ pydual1_richcompare(PyObject *a, PyObject *b, int op)
         return NEW_DUAL1(expr(x, y));                                     \
     }
 
-DUAL1_BINARY(add, vec2_add)
-DUAL1_BINARY(sub, vec2_sub)
+DUAL1_BINARY(add, dual1_add)
+DUAL1_BINARY(sub, dual1_sub)
 DUAL1_BINARY(mul, dual1_mul)
 DUAL1_BINARY(div, dual1_div)
 
@@ -178,13 +179,13 @@ pydual1_pow(PyObject *a, PyObject *b, PyObject *mod)
         return NEW_DUAL1(expr(((PyDual1 *)self)->v));                  \
     }
 
-DUAL1_UNARY(pos, vec2_pos)
-DUAL1_UNARY(neg, vec2_neg)
+DUAL1_UNARY(pos, dual1_pos)
+DUAL1_UNARY(neg, dual1_neg)
 
 static PyObject *
 pydual1_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return PyDual1_FromValue((PyTypeObject *)cls, vec2_zero());
+    return PyDual1_FromValue((PyTypeObject *)cls, dual1_zero());
 }
 
 static PyObject *
@@ -222,6 +223,36 @@ static PyObject *
 pydual1_norm2(PyObject *self, PyObject *Py_UNUSED(args))
 {
     return PyFloat_FromDouble(dual1_norm2(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    dual1 v = ((PyDual1 *)self)->v;
+    npy_intp dims[2] = {2, 2};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    double *d;
+    if (arr == NULL) {
+        return NULL;
+    }
+    d = (double *)PyArray_DATA((PyArrayObject *)arr);
+    dual1_lmat(v, d);
+    return arr;
+}
+
+static PyObject *
+pydual1_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    dual1 v = ((PyDual1 *)self)->v;
+    npy_intp dims[2] = {2, 2};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    double *d;
+    if (arr == NULL) {
+        return NULL;
+    }
+    d = (double *)PyArray_DATA((PyArrayObject *)arr);
+    dual1_rmat(v, d);
+    return arr;
 }
 
 static PyObject *
@@ -300,17 +331,190 @@ pydual1_reduce(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pydual1_norm(PyObject *self, PyObject *Py_UNUSED(args))
 {
-    return algpy_norm_to_py(complex_root_real(dual1_norm2(((PyDual1 *)self)->v), 2));
+    return PyFloat_FromDouble(dual1_norm(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_inv(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_inv(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_square(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_expm1(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_log1p(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_asin(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_acos(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_atan(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_asinh(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_acosh(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_atanh(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_re(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyDual1_FromValue(Py_TYPE(self), dual1_im(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_real(PyObject *self, void *closure)
+{
+    return pydual1_re(self, NULL);
+}
+
+static PyObject *
+pydual1_imag(PyObject *self, void *closure)
+{
+    return pydual1_im(self, NULL);
+}
+
+static PyGetSetDef pydual1_getset[] = {
+    {"real", pydual1_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pydual1_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pydual1_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(dual1_is_real(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(dual1_to_re(((PyDual1 *)self)->v));
+}
+
+static PyObject *
+pydual1_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PyDual1_FromValue((PyTypeObject *)cls, dual1_from_re(a));
+}
+
+static PyObject *
+pydual1_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    dual1 b;
+    double t;
+    int r;
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = dual1_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyDual1_FromValue(Py_TYPE(self),
+        dual1_mix(((PyDual1 *)self)->v, b, t));
+}
+
+static PyObject *
+pydual1_to_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_to_float(args, kwargs, npy_dual1, 2);
+}
+
+static PyObject *
+pydual1_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_from_float(args, kwargs, npy_dual1, 2);
 }
 
 static PyMethodDef pydual1_methods[] = {
+    {"to_float", (PyCFunction)pydual1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pydual1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pydual1_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pydual1_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pydual1_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pydual1_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"inv", pydual1_inv, METH_NOARGS, "inv. See the C header for TODO status."},
+    {"square", pydual1_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"expm1", pydual1_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log1p", pydual1_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"asin", pydual1_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pydual1_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pydual1_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"asinh", pydual1_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pydual1_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pydual1_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pydual1_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pydual1_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pydual1_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pydual1_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pydual1_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pydual1_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pydual1_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pydual1_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pydual1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pydual1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pydual1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pydual1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pydual1_norm2, METH_NOARGS, "Squared norm."},
-    {"norm", pydual1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
+    {"norm", pydual1_norm, METH_NOARGS, "Norm as a Python float."},
     {"conjugate", pydual1_conjugate, METH_NOARGS, "Dual conjugate."},
+    {"lmat", pydual1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pydual1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pydual1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pydual1_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pydual1_exp, METH_NOARGS, "Dual exponential."},
@@ -388,6 +592,7 @@ static PyType_Slot pydual1_slots[] = {
     {Py_tp_doc, (void *)"Dual number with float64 components"},
     {Py_tp_richcompare, pydual1_richcompare},
     {Py_tp_methods, pydual1_methods},
+    {Py_tp_getset, pydual1_getset},
     {Py_sq_length, pydual1_length},
     {Py_sq_item, pydual1_item},
     {Py_mp_subscript, pydual1_subscript},
@@ -585,18 +790,6 @@ loop_dual1_binary(char **args, npy_intp const *dims,
     }
 }
 
-static int
-dual1_equal(dual1 a, dual1 b)
-{
-    return a.data[0] == b.data[0] && a.data[1] == b.data[1];
-}
-
-static int
-dual1_not_equal(dual1 a, dual1 b)
-{
-    return a.data[0] != b.data[0] || a.data[1] != b.data[1];
-}
-
 static void
 loop_dual1_predicate(char **args, npy_intp const *dims,
                         npy_intp const *steps, void *data)
@@ -640,42 +833,36 @@ pydual1_register_loop(PyObject *numpy, const char *name,
 static int
 pydual1_register_ufuncs(PyObject *numpy)
 {
-    return pydual1_register_loop(numpy, "add", loop_dual1_binary, 3, 0,
-                                    vec2_add) ||
-        pydual1_register_loop(numpy, "subtract", loop_dual1_binary, 3, 0,
-                                 vec2_sub) ||
-        pydual1_register_loop(numpy, "multiply", loop_dual1_binary, 3, 0,
-                                 dual1_mul) ||
-        pydual1_register_loop(numpy, "divide", loop_dual1_binary, 3, 0,
-                                 dual1_div) ||
-        pydual1_register_loop(numpy, "power", loop_dual1_binary, 3, 0,
-                                 dual1_pow) ||
-        pydual1_register_loop(numpy, "positive", loop_dual1_unary, 2, 0,
-                                 vec2_pos) ||
-        pydual1_register_loop(numpy, "negative", loop_dual1_unary, 2, 0,
-                                 vec2_neg) ||
-        pydual1_register_loop(numpy, "exp", loop_dual1_unary, 2, 0,
-                                 dual1_exp) ||
-        pydual1_register_loop(numpy, "log", loop_dual1_unary, 2, 0,
-                                 dual1_log) ||
-        pydual1_register_loop(numpy, "sin", loop_dual1_unary, 2, 0,
-                                 dual1_sin) ||
-        pydual1_register_loop(numpy, "cos", loop_dual1_unary, 2, 0,
-                                 dual1_cos) ||
-        pydual1_register_loop(numpy, "tan", loop_dual1_unary, 2, 0,
-                                 dual1_tan) ||
-        pydual1_register_loop(numpy, "sinh", loop_dual1_unary, 2, 0,
-                                 dual1_sinh) ||
-        pydual1_register_loop(numpy, "cosh", loop_dual1_unary, 2, 0,
-                                 dual1_cosh) ||
-        pydual1_register_loop(numpy, "tanh", loop_dual1_unary, 2, 0,
-                                 dual1_tanh) ||
-        pydual1_register_loop(numpy, "sqrt", loop_dual1_unary, 2, 0,
-                                 dual1_sqrt) ||
-        pydual1_register_loop(numpy, "equal", loop_dual1_predicate, 3, 1,
-                                 dual1_equal) ||
-        pydual1_register_loop(numpy, "not_equal", loop_dual1_predicate, 3, 1,
-                                 dual1_not_equal)
+    return
+        pydual1_register_loop(numpy, "add", loop_dual1_binary, 3, 0, dual1_add) ||
+        pydual1_register_loop(numpy, "subtract", loop_dual1_binary, 3, 0, dual1_sub) ||
+        pydual1_register_loop(numpy, "multiply", loop_dual1_binary, 3, 0, dual1_mul) ||
+        pydual1_register_loop(numpy, "divide", loop_dual1_binary, 3, 0, dual1_div) ||
+        pydual1_register_loop(numpy, "power", loop_dual1_binary, 3, 0, dual1_pow) ||
+        pydual1_register_loop(numpy, "positive", loop_dual1_unary, 2, 0, dual1_pos) ||
+        pydual1_register_loop(numpy, "negative", loop_dual1_unary, 2, 0, dual1_neg) ||
+        pydual1_register_loop(numpy, "conjugate", loop_dual1_unary, 2, 0, dual1_conjugate) ||
+        pydual1_register_loop(numpy, "reciprocal", loop_dual1_unary, 2, 0, dual1_inv) ||
+        pydual1_register_loop(numpy, "square", loop_dual1_unary, 2, 0, dual1_square) ||
+        pydual1_register_loop(numpy, "exp", loop_dual1_unary, 2, 0, dual1_exp) ||
+        pydual1_register_loop(numpy, "expm1", loop_dual1_unary, 2, 0, dual1_expm1) ||
+        pydual1_register_loop(numpy, "log", loop_dual1_unary, 2, 0, dual1_log) ||
+        pydual1_register_loop(numpy, "log1p", loop_dual1_unary, 2, 0, dual1_log1p) ||
+        pydual1_register_loop(numpy, "sqrt", loop_dual1_unary, 2, 0, dual1_sqrt) ||
+        pydual1_register_loop(numpy, "sin", loop_dual1_unary, 2, 0, dual1_sin) ||
+        pydual1_register_loop(numpy, "cos", loop_dual1_unary, 2, 0, dual1_cos) ||
+        pydual1_register_loop(numpy, "tan", loop_dual1_unary, 2, 0, dual1_tan) ||
+        pydual1_register_loop(numpy, "arcsin", loop_dual1_unary, 2, 0, dual1_asin) ||
+        pydual1_register_loop(numpy, "arccos", loop_dual1_unary, 2, 0, dual1_acos) ||
+        pydual1_register_loop(numpy, "arctan", loop_dual1_unary, 2, 0, dual1_atan) ||
+        pydual1_register_loop(numpy, "sinh", loop_dual1_unary, 2, 0, dual1_sinh) ||
+        pydual1_register_loop(numpy, "cosh", loop_dual1_unary, 2, 0, dual1_cosh) ||
+        pydual1_register_loop(numpy, "tanh", loop_dual1_unary, 2, 0, dual1_tanh) ||
+        pydual1_register_loop(numpy, "arcsinh", loop_dual1_unary, 2, 0, dual1_asinh) ||
+        pydual1_register_loop(numpy, "arccosh", loop_dual1_unary, 2, 0, dual1_acosh) ||
+        pydual1_register_loop(numpy, "arctanh", loop_dual1_unary, 2, 0, dual1_atanh) ||
+        pydual1_register_loop(numpy, "equal", loop_dual1_predicate, 3, 1, dual1_equal) ||
+        pydual1_register_loop(numpy, "not_equal", loop_dual1_predicate, 3, 1, dual1_not_equal)
         ? -1 : 0;
 }
 
@@ -728,6 +915,9 @@ PyInit__dual1(void)
         goto fail;
     }
     Py_DECREF(descr);
+    if (algpy_set_dimension(PyDual1_Type, 2) < 0) {
+        goto fail;
+    }
     if (pydual1_register_casts() < 0 ||
             pydual1_register_ufuncs(numpy) < 0 ||
             PyModule_AddObjectRef(m, "dual1", PyDual1_Type) < 0) {

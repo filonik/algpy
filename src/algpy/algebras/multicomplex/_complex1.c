@@ -13,8 +13,9 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
+#include "../../_conversions.h"
+
 #include "complex1.h"
-#include "../norm.h"
 
 typedef struct {
     PyObject_HEAD
@@ -147,8 +148,8 @@ pycomplex1_richcompare(PyObject *a, PyObject *b, int op)
         return NEW_COMPLEX1(expr(x, y));                                     \
     }
 
-COMPLEX1_BINARY(add, vec2_add)
-COMPLEX1_BINARY(sub, vec2_sub)
+COMPLEX1_BINARY(add, complex1_add)
+COMPLEX1_BINARY(sub, complex1_sub)
 COMPLEX1_BINARY(mul, complex1_mul)
 COMPLEX1_BINARY(div, complex1_div)
 
@@ -178,13 +179,13 @@ pycomplex1_pow(PyObject *a, PyObject *b, PyObject *mod)
         return NEW_COMPLEX1(expr(((PyComplex1 *)self)->v));                  \
     }
 
-COMPLEX1_UNARY(pos, vec2_pos)
-COMPLEX1_UNARY(neg, vec2_neg)
+COMPLEX1_UNARY(pos, complex1_pos)
+COMPLEX1_UNARY(neg, complex1_neg)
 
 static PyObject *
 pycomplex1_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return PyComplex1_FromValue((PyTypeObject *)cls, vec2_zero());
+    return PyComplex1_FromValue((PyTypeObject *)cls, complex1_zero());
 }
 
 static PyObject *
@@ -222,6 +223,32 @@ static PyObject *
 pycomplex1_norm2(PyObject *self, PyObject *Py_UNUSED(args))
 {
     return PyFloat_FromDouble(complex1_norm2(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    complex1 v = ((PyComplex1 *)self)->v;
+    npy_intp dims[2] = {2, 2};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    complex_lmat(v, (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
+
+static PyObject *
+pycomplex1_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    complex1 v = ((PyComplex1 *)self)->v;
+    npy_intp dims[2] = {2, 2};
+    PyObject *arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    complex_rmat(v, (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
 }
 
 static PyObject *
@@ -298,17 +325,190 @@ pycomplex1_reduce(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pycomplex1_norm(PyObject *self, PyObject *Py_UNUSED(args))
 {
-    return algpy_norm_to_py(complex_root_real(complex1_norm2(((PyComplex1 *)self)->v), 2));
+    return PyFloat_FromDouble(complex1_norm(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_inv(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_inv(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_square(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_expm1(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_log1p(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_asin(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_acos(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_atan(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_asinh(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_acosh(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_atanh(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_re(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_im(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_real(PyObject *self, void *closure)
+{
+    return pycomplex1_re(self, NULL);
+}
+
+static PyObject *
+pycomplex1_imag(PyObject *self, void *closure)
+{
+    return pycomplex1_im(self, NULL);
+}
+
+static PyGetSetDef pycomplex1_getset[] = {
+    {"real", pycomplex1_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pycomplex1_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pycomplex1_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(complex1_is_real(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(complex1_to_re(((PyComplex1 *)self)->v));
+}
+
+static PyObject *
+pycomplex1_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PyComplex1_FromValue((PyTypeObject *)cls, complex1_from_re(a));
+}
+
+static PyObject *
+pycomplex1_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    complex1 b;
+    double t;
+    int r;
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = complex1_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex1_FromValue(Py_TYPE(self),
+        complex1_mix(((PyComplex1 *)self)->v, b, t));
+}
+
+static PyObject *
+pycomplex1_to_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_to_float(args, kwargs, npy_complex1, 2);
+}
+
+static PyObject *
+pycomplex1_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
+{
+    return algpy_from_float(args, kwargs, npy_complex1, 2);
 }
 
 static PyMethodDef pycomplex1_methods[] = {
+    {"to_float", (PyCFunction)pycomplex1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pycomplex1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pycomplex1_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pycomplex1_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pycomplex1_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pycomplex1_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"inv", pycomplex1_inv, METH_NOARGS, "inv. See the C header for TODO status."},
+    {"square", pycomplex1_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"expm1", pycomplex1_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log1p", pycomplex1_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"asin", pycomplex1_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pycomplex1_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pycomplex1_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"asinh", pycomplex1_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pycomplex1_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pycomplex1_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pycomplex1_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pycomplex1_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pycomplex1_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pycomplex1_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pycomplex1_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pycomplex1_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pycomplex1_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pycomplex1_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pycomplex1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycomplex1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycomplex1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycomplex1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pycomplex1_norm2, METH_NOARGS, "Squared norm."},
-    {"norm", pycomplex1_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
+    {"norm", pycomplex1_norm, METH_NOARGS, "Norm as a Python float."},
     {"conjugate", pycomplex1_conjugate, METH_NOARGS, "Complex conjugate."},
+    {"lmat", pycomplex1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pycomplex1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pycomplex1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
     {"eivals", pycomplex1_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pycomplex1_exp, METH_NOARGS, "Complex exponential."},
@@ -386,6 +586,7 @@ static PyType_Slot pycomplex1_slots[] = {
     {Py_tp_doc, (void *)"Complex number with float64 components"},
     {Py_tp_richcompare, pycomplex1_richcompare},
     {Py_tp_methods, pycomplex1_methods},
+    {Py_tp_getset, pycomplex1_getset},
     {Py_sq_length, pycomplex1_length},
     {Py_sq_item, pycomplex1_item},
     {Py_mp_subscript, pycomplex1_subscript},
@@ -583,18 +784,6 @@ loop_complex1_binary(char **args, npy_intp const *dims,
     }
 }
 
-static int
-complex1_equal(complex1 a, complex1 b)
-{
-    return a.data[0] == b.data[0] && a.data[1] == b.data[1];
-}
-
-static int
-complex1_not_equal(complex1 a, complex1 b)
-{
-    return a.data[0] != b.data[0] || a.data[1] != b.data[1];
-}
-
 static void
 loop_complex1_predicate(char **args, npy_intp const *dims,
                         npy_intp const *steps, void *data)
@@ -638,42 +827,36 @@ pycomplex1_register_loop(PyObject *numpy, const char *name,
 static int
 pycomplex1_register_ufuncs(PyObject *numpy)
 {
-    return pycomplex1_register_loop(numpy, "add", loop_complex1_binary, 3, 0,
-                                    vec2_add) ||
-        pycomplex1_register_loop(numpy, "subtract", loop_complex1_binary, 3, 0,
-                                 vec2_sub) ||
-        pycomplex1_register_loop(numpy, "multiply", loop_complex1_binary, 3, 0,
-                                 complex1_mul) ||
-        pycomplex1_register_loop(numpy, "divide", loop_complex1_binary, 3, 0,
-                                 complex1_div) ||
-        pycomplex1_register_loop(numpy, "power", loop_complex1_binary, 3, 0,
-                                 complex1_pow) ||
-        pycomplex1_register_loop(numpy, "positive", loop_complex1_unary, 2, 0,
-                                 vec2_pos) ||
-        pycomplex1_register_loop(numpy, "negative", loop_complex1_unary, 2, 0,
-                                 vec2_neg) ||
-        pycomplex1_register_loop(numpy, "exp", loop_complex1_unary, 2, 0,
-                                 complex1_exp) ||
-        pycomplex1_register_loop(numpy, "log", loop_complex1_unary, 2, 0,
-                                 complex1_log) ||
-        pycomplex1_register_loop(numpy, "sin", loop_complex1_unary, 2, 0,
-                                 complex1_sin) ||
-        pycomplex1_register_loop(numpy, "cos", loop_complex1_unary, 2, 0,
-                                 complex1_cos) ||
-        pycomplex1_register_loop(numpy, "tan", loop_complex1_unary, 2, 0,
-                                 complex1_tan) ||
-        pycomplex1_register_loop(numpy, "sinh", loop_complex1_unary, 2, 0,
-                                 complex1_sinh) ||
-        pycomplex1_register_loop(numpy, "cosh", loop_complex1_unary, 2, 0,
-                                 complex1_cosh) ||
-        pycomplex1_register_loop(numpy, "tanh", loop_complex1_unary, 2, 0,
-                                 complex1_tanh) ||
-        pycomplex1_register_loop(numpy, "sqrt", loop_complex1_unary, 2, 0,
-                                 complex1_sqrt) ||
-        pycomplex1_register_loop(numpy, "equal", loop_complex1_predicate, 3, 1,
-                                 complex1_equal) ||
-        pycomplex1_register_loop(numpy, "not_equal", loop_complex1_predicate, 3, 1,
-                                 complex1_not_equal)
+    return
+        pycomplex1_register_loop(numpy, "add", loop_complex1_binary, 3, 0, complex1_add) ||
+        pycomplex1_register_loop(numpy, "subtract", loop_complex1_binary, 3, 0, complex1_sub) ||
+        pycomplex1_register_loop(numpy, "multiply", loop_complex1_binary, 3, 0, complex1_mul) ||
+        pycomplex1_register_loop(numpy, "divide", loop_complex1_binary, 3, 0, complex1_div) ||
+        pycomplex1_register_loop(numpy, "power", loop_complex1_binary, 3, 0, complex1_pow) ||
+        pycomplex1_register_loop(numpy, "positive", loop_complex1_unary, 2, 0, complex1_pos) ||
+        pycomplex1_register_loop(numpy, "negative", loop_complex1_unary, 2, 0, complex1_neg) ||
+        pycomplex1_register_loop(numpy, "conjugate", loop_complex1_unary, 2, 0, complex1_conjugate) ||
+        pycomplex1_register_loop(numpy, "reciprocal", loop_complex1_unary, 2, 0, complex1_inv) ||
+        pycomplex1_register_loop(numpy, "square", loop_complex1_unary, 2, 0, complex1_square) ||
+        pycomplex1_register_loop(numpy, "exp", loop_complex1_unary, 2, 0, complex1_exp) ||
+        pycomplex1_register_loop(numpy, "expm1", loop_complex1_unary, 2, 0, complex1_expm1) ||
+        pycomplex1_register_loop(numpy, "log", loop_complex1_unary, 2, 0, complex1_log) ||
+        pycomplex1_register_loop(numpy, "log1p", loop_complex1_unary, 2, 0, complex1_log1p) ||
+        pycomplex1_register_loop(numpy, "sqrt", loop_complex1_unary, 2, 0, complex1_sqrt) ||
+        pycomplex1_register_loop(numpy, "sin", loop_complex1_unary, 2, 0, complex1_sin) ||
+        pycomplex1_register_loop(numpy, "cos", loop_complex1_unary, 2, 0, complex1_cos) ||
+        pycomplex1_register_loop(numpy, "tan", loop_complex1_unary, 2, 0, complex1_tan) ||
+        pycomplex1_register_loop(numpy, "arcsin", loop_complex1_unary, 2, 0, complex1_asin) ||
+        pycomplex1_register_loop(numpy, "arccos", loop_complex1_unary, 2, 0, complex1_acos) ||
+        pycomplex1_register_loop(numpy, "arctan", loop_complex1_unary, 2, 0, complex1_atan) ||
+        pycomplex1_register_loop(numpy, "sinh", loop_complex1_unary, 2, 0, complex1_sinh) ||
+        pycomplex1_register_loop(numpy, "cosh", loop_complex1_unary, 2, 0, complex1_cosh) ||
+        pycomplex1_register_loop(numpy, "tanh", loop_complex1_unary, 2, 0, complex1_tanh) ||
+        pycomplex1_register_loop(numpy, "arcsinh", loop_complex1_unary, 2, 0, complex1_asinh) ||
+        pycomplex1_register_loop(numpy, "arccosh", loop_complex1_unary, 2, 0, complex1_acosh) ||
+        pycomplex1_register_loop(numpy, "arctanh", loop_complex1_unary, 2, 0, complex1_atanh) ||
+        pycomplex1_register_loop(numpy, "equal", loop_complex1_predicate, 3, 1, complex1_equal) ||
+        pycomplex1_register_loop(numpy, "not_equal", loop_complex1_predicate, 3, 1, complex1_not_equal)
         ? -1 : 0;
 }
 
@@ -726,6 +909,9 @@ PyInit__complex1(void)
         goto fail;
     }
     Py_DECREF(descr);
+    if (algpy_set_dimension(PyComplex1_Type, 2) < 0) {
+        goto fail;
+    }
     if (pycomplex1_register_casts() < 0 ||
             pycomplex1_register_ufuncs(numpy) < 0 ||
             PyModule_AddObjectRef(m, "complex1", PyComplex1_Type) < 0) {

@@ -19,7 +19,7 @@
 #include "numpy/arrayobject.h"
 #include "numpy/ufuncobject.h"
 
-#include "../../norm.h"
+#include "../../../_conversions.h"
 
 #include "multicomplex2.h"
 
@@ -35,7 +35,6 @@ typedef struct {
     PyObject_HEAD
     multicomplex2 v;
 } PyMC2;
-
 
 static Info *
 info_of_type(PyTypeObject *type)
@@ -169,7 +168,7 @@ pymc2_richcompare(PyObject *a, PyObject *b, int op)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyBool_FromLong(vec4_all_eq(x, y) == (op == Py_EQ));
+    return PyBool_FromLong(multicomplex2_equal(x, y) == (op == Py_EQ));
 }
 
 #define MC2_BINARY(name, expr)                                             \
@@ -192,21 +191,21 @@ pymc2_richcompare(PyObject *a, PyObject *b, int op)
         return mc2_from_value((PyTypeObject *)info->type, expr);           \
     }
 
-MC2_BINARY(add, vec4_add(x, y))
-MC2_BINARY(sub, vec4_sub(x, y))
+MC2_BINARY(add, multicomplex2_add(x, y))
+MC2_BINARY(sub, multicomplex2_sub(x, y))
 MC2_BINARY(mul, multicomplex2_mul(info->k, x, y))
 MC2_BINARY(div, multicomplex2_div(info->k, x, y))
 
 static PyObject *
 pymc2_pos(PyObject *self)
 {
-    return mc2_from_value(Py_TYPE(self), vec4_pos(((PyMC2 *)self)->v));
+    return mc2_from_value(Py_TYPE(self), multicomplex2_pos(((PyMC2 *)self)->v));
 }
 
 static PyObject *
 pymc2_neg(PyObject *self)
 {
-    return mc2_from_value(Py_TYPE(self), vec4_neg(((PyMC2 *)self)->v));
+    return mc2_from_value(Py_TYPE(self), multicomplex2_neg(((PyMC2 *)self)->v));
 }
 
 static int
@@ -225,7 +224,7 @@ pymc2_conjugate(PyObject *self, PyObject *Py_UNUSED(args))
 static PyObject *
 pymc2_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return mc2_from_value((PyTypeObject *)cls, vec4_zero());
+    return mc2_from_value((PyTypeObject *)cls, multicomplex2_zero());
 }
 
 static PyObject *
@@ -235,6 +234,42 @@ pymc2_one(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *rebuild_func = NULL;
+
+static PyObject *
+pymc2_lmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex2_lmat(info->k, ((PyMC2 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
+
+static PyObject *
+pymc2_rmat(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    npy_intp dims[2] = {4, 4};
+    PyObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex2_rmat(info->k, ((PyMC2 *)self)->v,
+                           (double *)PyArray_DATA((PyArrayObject *)arr));
+    return arr;
+}
 
 static PyObject *
 pymc2_minpoly(PyObject *self, PyObject *Py_UNUSED(args))
@@ -334,16 +369,341 @@ pymc2_norm(PyObject *self, PyObject *Py_UNUSED(args))
     if (info == NULL) {
         return NULL;
     }
-    return algpy_norm_to_py(complex_root_real(multicomplex2_norm4(info->k, ((PyMC2 *)self)->v), 4));
+    complex n = multicomplex2_norm(info->k, ((PyMC2 *)self)->v);
+    return PyComplex_FromDoubles(n.data[0], n.data[1]);
+}
+
+static PyObject *
+pymc2_inv(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_inv(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_square(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_square(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_exp(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_exp(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_expm1(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_expm1(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_log(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_log(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_log1p(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_log1p(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_sqrt(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_sqrt(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_sin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_sin(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_cos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_cos(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_tan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_tan(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_asin(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_asin(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_acos(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_acos(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_atan(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_atan(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_sinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_sinh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_cosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_cosh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_tanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_tanh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_asinh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_asinh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_acosh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_acosh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_atanh(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self), multicomplex2_atanh(info->k, ((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return mc2_from_value(Py_TYPE(self), multicomplex2_re(((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_im(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return mc2_from_value(Py_TYPE(self), multicomplex2_im(((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_real(PyObject *self, void *closure)
+{
+    return pymc2_re(self, NULL);
+}
+
+static PyObject *
+pymc2_imag(PyObject *self, void *closure)
+{
+    return pymc2_im(self, NULL);
+}
+
+static PyGetSetDef pymc2_getset[] = {
+    {"real", pymc2_real, NULL, "Real part in the algebra.", NULL},
+    {"imag", pymc2_imag, NULL, "Non-real part in the algebra.", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyObject *
+pymc2_is_real(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyBool_FromLong(multicomplex2_is_real(((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_to_re(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    return PyFloat_FromDouble(multicomplex2_to_re(((PyMC2 *)self)->v));
+}
+
+static PyObject *
+pymc2_from_re(PyObject *cls, PyObject *value)
+{
+    double a = PyFloat_AsDouble(value);
+    if (a == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return mc2_from_value((PyTypeObject *)cls, multicomplex2_from_re(a));
+}
+
+static PyObject *
+pymc2_mix(PyObject *self, PyObject *args)
+{
+    PyObject *other;
+    multicomplex2 b;
+    double t;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    if (!PyArg_ParseTuple(args, "Od", &other, &t)) {
+        return NULL;
+    }
+    r = mc2_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "mix expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return mc2_from_value(Py_TYPE(self),
+        multicomplex2_mix(info->k, ((PyMC2 *)self)->v, b, t));
+}
+
+static PyObject *
+pymc2_to_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_to_float(args, kwargs, info->typenum, 4);
+}
+
+static PyObject *
+pymc2_from_float(PyObject *cls, PyObject *args, PyObject *kwargs)
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    if (info == NULL) {
+        return NULL;
+    }
+    return algpy_from_float(args, kwargs, info->typenum, 4);
 }
 
 static PyMethodDef pymc2_methods[] = {
+    {"to_float", (PyCFunction)pymc2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
+    {"from_float", (PyCFunction)pymc2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
+    {"is_real", pymc2_is_real, METH_NOARGS, "Whether all non-real components are zero."},
+    {"to_re", pymc2_to_re, METH_NOARGS, "Real coefficient."},
+    {"from_re", pymc2_from_re, METH_O | METH_CLASS, "Embed a real number."},
+    {"mix", pymc2_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
+    {"inv", pymc2_inv, METH_NOARGS, "inv. See the C header for TODO status."},
+    {"square", pymc2_square, METH_NOARGS, "square. See the C header for TODO status."},
+    {"exp", pymc2_exp, METH_NOARGS, "exp. See the C header for TODO status."},
+    {"expm1", pymc2_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
+    {"log", pymc2_log, METH_NOARGS, "log. See the C header for TODO status."},
+    {"log1p", pymc2_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
+    {"sqrt", pymc2_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
+    {"sin", pymc2_sin, METH_NOARGS, "sin. See the C header for TODO status."},
+    {"cos", pymc2_cos, METH_NOARGS, "cos. See the C header for TODO status."},
+    {"tan", pymc2_tan, METH_NOARGS, "tan. See the C header for TODO status."},
+    {"asin", pymc2_asin, METH_NOARGS, "asin. See the C header for TODO status."},
+    {"acos", pymc2_acos, METH_NOARGS, "acos. See the C header for TODO status."},
+    {"atan", pymc2_atan, METH_NOARGS, "atan. See the C header for TODO status."},
+    {"sinh", pymc2_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
+    {"cosh", pymc2_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
+    {"tanh", pymc2_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
+    {"asinh", pymc2_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
+    {"acosh", pymc2_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
+    {"atanh", pymc2_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
+    {"re", pymc2_re, METH_NOARGS, "re. See the C header for TODO status."},
+    {"im", pymc2_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"arcsin", pymc2_asin, METH_NOARGS, "Alias for asin."},
+    {"arccos", pymc2_acos, METH_NOARGS, "Alias for acos."},
+    {"arctan", pymc2_atan, METH_NOARGS, "Alias for atan."},
+    {"arcsinh", pymc2_asinh, METH_NOARGS, "Alias for asinh."},
+    {"arccosh", pymc2_acosh, METH_NOARGS, "Alias for acosh."},
+    {"arctanh", pymc2_atanh, METH_NOARGS, "Alias for atanh."},
+
     {"zero", pymc2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pymc2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
-    {"norm", pymc2_norm, METH_NOARGS, "Norm (a float, or a complex1 if imaginary)."},
+    {"norm", pymc2_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pymc2_conjugate, METH_NOARGS, "Conjugate."},
+    {"lmat", pymc2_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
+    {"rmat", pymc2_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pymc2_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
     {"eivals", pymc2_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pymc2_reduce, METH_NOARGS, "Support for pickle."},
@@ -402,6 +762,29 @@ pymc2_dealloc(PyObject *self)
     Py_DECREF(tp);
 }
 
+static PyObject *
+pymc2_pow(PyObject *a, PyObject *b, PyObject *mod)
+{
+    multicomplex2 x, y;
+    int r;
+    Info *info = binary_info(a, b);
+    if (info == NULL) {
+        return NULL;
+    }
+    if (mod != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "multicomplex2 does not support modular power");
+        return NULL;
+    }
+    if ((r = mc2_from_object(info, a, &x)) <= 0 ||
+            (r = mc2_from_object(info, b, &y)) <= 0) {
+        if (r < 0) {
+            return NULL;
+        }
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    return mc2_from_value((PyTypeObject *)info->type, multicomplex2_pow(info->k, x, y));
+}
+
 static PyType_Slot pymc2_slots[] = {
     {Py_tp_dealloc, pymc2_dealloc},
     {Py_tp_traverse, pymc2_traverse},
@@ -413,6 +796,7 @@ static PyType_Slot pymc2_slots[] = {
     {Py_tp_doc, (void *)"Multicomplex number with float64 components"},
     {Py_tp_richcompare, pymc2_richcompare},
     {Py_tp_methods, pymc2_methods},
+    {Py_tp_getset, pymc2_getset},
     {Py_sq_length, pymc2_length},
     {Py_sq_item, pymc2_item},
     {Py_mp_subscript, pymc2_subscript},
@@ -421,6 +805,7 @@ static PyType_Slot pymc2_slots[] = {
     {Py_nb_subtract, pymc2_sub},
     {Py_nb_multiply, pymc2_mul},
     {Py_nb_true_divide, pymc2_div},
+    {Py_nb_power, (void *)pymc2_pow},
     {Py_nb_positive, pymc2_pos},
     {Py_nb_negative, pymc2_neg},
     {Py_nb_bool, pymc2_bool},
@@ -551,7 +936,7 @@ typedef struct { char c; multicomplex2 v; } align_test;
         multicomplex2 *dst = (multicomplex2 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = multicomplex2_make((double)src[i], 0, 0, 0);                \
+            dst[i] = multicomplex2_from_re((double)src[i]);                \
         }                                                                  \
     }
 
@@ -599,18 +984,19 @@ register_casts(int typenum)
 typedef struct Op {
     const vec2 *k;
     multicomplex2 (*unary)(multicomplex2);
+    multicomplex2 (*unary_k)(vec2, multicomplex2);
     multicomplex2 (*binary)(vec2, multicomplex2, multicomplex2);
     int (*pred)(multicomplex2, multicomplex2);
 } Op;
 
 static multicomplex2 op_add(vec2 k, multicomplex2 a, multicomplex2 b)
-{ return vec4_add(a, b); }
+{ return multicomplex2_add(a, b); }
 static multicomplex2 op_sub(vec2 k, multicomplex2 a, multicomplex2 b)
-{ return vec4_sub(a, b); }
+{ return multicomplex2_sub(a, b); }
 static int op_equal(multicomplex2 a, multicomplex2 b)
-{ return vec4_all_eq(a, b); }
+{ return multicomplex2_equal(a, b); }
 static int op_not_equal(multicomplex2 a, multicomplex2 b)
-{ return !vec4_all_eq(a, b); }
+{ return !multicomplex2_equal(a, b); }
 
 static void
 loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
@@ -623,6 +1009,22 @@ loop_unary(char **args, npy_intp const *dims, npy_intp const *steps,
         multicomplex2 a, r;
         memcpy(&a, in, sizeof(a));
         r = op->unary(a);
+        memcpy(out, &r, sizeof(r));
+        in += steps[0];
+        out += steps[1];
+    }
+}
+
+static void
+loop_unary_k(char **args, npy_intp const *dims, npy_intp const *steps, void *data)
+{
+    Op *op = (Op *)data;
+    char *in = args[0], *out = args[1];
+    npy_intp i;
+    for (i = 0; i < dims[0]; i++) {
+        multicomplex2 a, r;
+        memcpy(&a, in, sizeof(a));
+        r = op->unary_k(*op->k, a);
         memcpy(out, &r, sizeof(r));
         in += steps[0];
         out += steps[1];
@@ -700,49 +1102,47 @@ register_loop(Info *info, PyObject *numpy, const char *name,
 static int
 register_ufuncs(Info *info, PyObject *numpy)
 {
-    Op none = {NULL, NULL, NULL, NULL};
+    Op none = {NULL, NULL, NULL, NULL, NULL};
     Op o;
 #define BIN(name, f) (o = none, o.binary = f, register_loop(info, numpy, name, loop_binary, 3, 0, o))
 #define UN(name, f) (o = none, o.unary = f, register_loop(info, numpy, name, loop_unary, 2, 0, o))
+#define UNK(name, f) (o = none, o.unary_k = f, register_loop(info, numpy, name, loop_unary_k, 2, 0, o))
 #define PRED(name, f) (o = none, o.pred = f, register_loop(info, numpy, name, loop_predicate, 3, 1, o))
     return
-        BIN("add", op_add) || BIN("subtract", op_sub) ||
+        BIN("add", op_add) ||
+        BIN("subtract", op_sub) ||
         BIN("multiply", multicomplex2_mul) ||
         BIN("divide", multicomplex2_div) ||
-        UN("positive", vec4_pos) || UN("negative", vec4_neg) ||
-        PRED("equal", op_equal) || PRED("not_equal", op_not_equal)
+        BIN("power", multicomplex2_pow) ||
+        UN("positive", multicomplex2_pos) ||
+        UN("negative", multicomplex2_neg) ||
+        UN("conjugate", multicomplex2_conjugate) ||
+        UNK("reciprocal", multicomplex2_inv) ||
+        UNK("square", multicomplex2_square) ||
+        UNK("exp", multicomplex2_exp) ||
+        UNK("expm1", multicomplex2_expm1) ||
+        UNK("log", multicomplex2_log) ||
+        UNK("log1p", multicomplex2_log1p) ||
+        UNK("sqrt", multicomplex2_sqrt) ||
+        UNK("sin", multicomplex2_sin) ||
+        UNK("cos", multicomplex2_cos) ||
+        UNK("tan", multicomplex2_tan) ||
+        UNK("arcsin", multicomplex2_asin) ||
+        UNK("arccos", multicomplex2_acos) ||
+        UNK("arctan", multicomplex2_atan) ||
+        UNK("sinh", multicomplex2_sinh) ||
+        UNK("cosh", multicomplex2_cosh) ||
+        UNK("tanh", multicomplex2_tanh) ||
+        UNK("arcsinh", multicomplex2_asinh) ||
+        UNK("arccosh", multicomplex2_acosh) ||
+        UNK("arctanh", multicomplex2_atanh) ||
+        PRED("equal", op_equal) ||
+        PRED("not_equal", op_not_equal)
         ? -1 : 0;
 #undef BIN
 #undef UN
+#undef UNK
 #undef PRED
-}
-
-static int
-register_conversions(PyObject *type, int n)
-{
-    PyObject *module, *attach, *result, *size;
-    module = PyImport_ImportModule("algpy.algebras._conversions");
-    if (module == NULL) {
-        return -1;
-    }
-    attach = PyObject_GetAttrString(module, "attach");
-    Py_DECREF(module);
-    if (attach == NULL) {
-        return -1;
-    }
-    size = PyLong_FromLong(n);
-    if (size == NULL) {
-        Py_DECREF(attach);
-        return -1;
-    }
-    result = PyObject_CallFunctionObjArgs(attach, type, size, NULL);
-    Py_DECREF(size);
-    Py_DECREF(attach);
-    if (result == NULL) {
-        return -1;
-    }
-    Py_DECREF(result);
-    return 0;
 }
 
 /*
@@ -879,7 +1279,7 @@ create_type(double k0, double k1)
     }
     Py_DECREF(descr_obj);
 
-    if (register_conversions(type, 4) < 0) {
+    if (algpy_set_dimension(type, 4) < 0) {
         goto fail;
     }
 

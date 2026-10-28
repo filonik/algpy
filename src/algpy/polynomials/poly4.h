@@ -1,55 +1,87 @@
 #ifndef ALGPY_POLY4_H
 #define ALGPY_POLY4_H
 
-#include <math.h>
+#define ALGPY_POLY4_N 4
 
-#include "../algebras/cayleydickson/complex.h"
+#include <float.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+#include "poly3.h"
 
-/* Roots of the polynomial by Durand-Kerner iteration; p is lowest degree first, monic. */
+/* Ascending real coefficients; roots_to_coeffs returns the monic polynomial.
+ * Its input roots must be real or occur in conjugate pairs, in any order.
+ */
 static inline void
-poly4_solve(const double p[5], complex result[4])
+poly4_roots_to_coeffs(const complex result[ALGPY_POLY4_N], double p[ALGPY_POLY4_N+1])
 {
-    complex z[4];
-    int i, j, it;
-    for (i = 0; i < 4; i++) {
-        double r = 1 + fabs(p[0]) + fabs(p[1]) + fabs(p[2]) + fabs(p[3]);
-        double t = 0.4 + 2.0 * M_PI * i / 4;
-        z[i] = complex_make(r * cos(t) * 0.5, r * sin(t) * 0.5);
+    double ar = result[0].data[0], ai = result[0].data[1];
+    double br = result[1].data[0], bi = result[1].data[1];
+    double cr = result[2].data[0], ci = result[2].data[1];
+    double dr = result[3].data[0], di = result[3].data[1];
+    double abr = ar*br - ai*bi, abi = ar*bi + ai*br;
+    double cdr = cr*dr - ci*di, cdi = cr*di + ci*dr;
+    double sr = ar+br, si = ai+bi, tr = cr+dr, ti = ci+di;
+    p[0] = abr*cdr - abi*cdi;
+    p[1] = -sr*cdr + si*cdi - tr*abr + ti*abi;
+    p[2] = abr + cdr + sr*tr - si*ti;
+    p[3] = -sr-tr;
+    p[4] = 1;
+}
+
+/* p[4] must be nonzero. Ferrari factorization uses one resolvent cubic and
+ * two quadratics. This is a small fixed-cost helper for algebra eigenvalues. */
+static inline void
+poly4_coeffs_to_roots(const double p[ALGPY_POLY4_N+1], complex result[ALGPY_POLY4_N])
+{
+    double inv = 1/p[4];
+    double a = p[3]*inv, b = p[2]*inv, c = p[1]*inv, d = p[0]*inv;
+    double shift = a/4;
+    double pp = b - 6*shift*shift;
+    double qq = (8*shift*shift - 2*b)*shift + c;
+    double rr = ((-3*shift*shift + b)*shift - c)*shift + d;
+    double qscale = fabs(8*shift*shift*shift) + fabs(2*b*shift) + fabs(c);
+    int i;
+    if (d == 0) {
+        poly3_coeffs_to_roots(p+1, result);
+        result[3] = complex_from_re(0);
+        return;
     }
-    for (it = 0; it < 500; it++) {
-        double delta = 0, scale = 1;
+    if (fabs(qq) <= 4*DBL_EPSILON*qscale) {
+        /* Biquadratic in y = x + a/4, allowing roundoff in qq. Degenerate
+         * Clifford algebras can produce this case with repeated eigenvalues. */
+        double quadratic[3] = {rr, pp, 1};
+        complex squares[2], u, v;
+        poly2_coeffs_to_roots(quadratic, squares);
+        u = complex_sqrt(squares[0]);
+        v = complex_sqrt(squares[1]);
+        result[0] = complex_make(u.data[0]-shift, u.data[1]);
+        result[1] = complex_make(-u.data[0]-shift, -u.data[1]);
+        result[2] = complex_make(v.data[0]-shift, v.data[1]);
+        result[3] = complex_make(-v.data[0]-shift, -v.data[1]);
+    }
+    else {
+        /* m = s^2: m^3 + 2*pp*m^2 + (pp^2 - 4*rr)*m - qq^2 = 0. */
+        double cubic[4] = {-qq*qq, pp*pp - 4*rr, 2*pp, 1};
+        complex roots[3];
+        double m, s, left[3], right[3];
+        poly3_coeffs_to_roots(cubic, roots);
+        m = roots[0].data[0];
+        for (i = 1; i < 3; i++) {
+            if (roots[i].data[1] == 0 && roots[i].data[0] > m) {
+                m = roots[i].data[0];
+            }
+        }
+        s = sqrt(m);
+        left[0] = (pp+m-qq/s)/2;
+        left[1] = s;
+        left[2] = 1;
+        right[0] = (pp+m+qq/s)/2;
+        right[1] = -s;
+        right[2] = 1;
+        poly2_coeffs_to_roots(left, result);
+        poly2_coeffs_to_roots(right, result+2);
         for (i = 0; i < 4; i++) {
-            complex f = complex_from_re(1), den = complex_from_re(1), d;
-            for (j = 3; j >= 0; j--) {
-                f = complex_mul(f, z[i]);
-                f = complex_make(f.data[0] + p[j], f.data[1]);
-            }
-            for (j = 0; j < 4; j++) {
-                if (j != i) {
-                    den = complex_mul(den, complex_make(
-                        z[i].data[0] - z[j].data[0],
-                        z[i].data[1] - z[j].data[1]));
-                }
-            }
-            if (complex_norm2(den) == 0) {
-                den = complex_make(1e-12, 0);
-            }
-            d = complex_div(f, den);
-            z[i] = complex_make(z[i].data[0] - d.data[0],
-                                 z[i].data[1] - d.data[1]);
-            delta += fabs(d.data[0]) + fabs(d.data[1]);
-            scale += fabs(z[i].data[0]) + fabs(z[i].data[1]);
+            result[i].data[0] -= shift;
         }
-        if (delta <= 1e-15 * scale) {
-            break;
-        }
-    }
-    for (i = 0; i < 4; i++) {
-        result[i] = z[i];
     }
 }
 

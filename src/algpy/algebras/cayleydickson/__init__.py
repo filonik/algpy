@@ -1,11 +1,12 @@
-"""Quaternion number type registered as a numpy user-defined dtype.
-
-Use ``from algpy.algebras import quaternion`` and pass ``quaternion`` as the
-dtype, e.g. ``numpy.array([...], dtype=quaternion)``.
-"""
+"""Concrete cayleydickson algebras registered as NumPy dtypes."""
+from ._real import real
 from ._quaternion import quaternion
-from .._conversions import attach as _attach_conversions
+from ._octonion import octonion
+from ._sedenion import sedenion
 
-_attach_conversions(quaternion, 4)
-
-__all__ = ["quaternion"]
+__all__ = [
+    "real",
+    "quaternion",
+    "octonion",
+    "sedenion",
+]

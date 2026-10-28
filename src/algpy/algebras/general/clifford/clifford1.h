@@ -19,4 +19,52 @@ typedef cayleydickson1 clifford1;
 #define clifford1_minpoly cayleydickson1_minpoly
 #define clifford1_eivals cayleydickson1_eivals
 
+#define ALGPY_CLIFFORD1_N ALGPY_CAYLEYDICKSON1_N
+
+#define clifford1_zero cayleydickson1_zero
+#define clifford1_re cayleydickson1_re
+#define clifford1_im cayleydickson1_im
+#define clifford1_is_real cayleydickson1_is_real
+#define clifford1_pos cayleydickson1_pos
+#define clifford1_neg cayleydickson1_neg
+#define clifford1_add cayleydickson1_add
+#define clifford1_sub cayleydickson1_sub
+#define clifford1_equal cayleydickson1_equal
+#define clifford1_not_equal cayleydickson1_not_equal
+#define clifford1_pow cayleydickson1_pow
+#define clifford1_square cayleydickson1_square
+#define clifford1_norm cayleydickson1_norm
+#define clifford1_exp cayleydickson1_exp
+#define clifford1_log cayleydickson1_log
+#define clifford1_sqrt cayleydickson1_sqrt
+#define clifford1_cos cayleydickson1_cos
+#define clifford1_sin cayleydickson1_sin
+#define clifford1_tan cayleydickson1_tan
+#define clifford1_acos cayleydickson1_acos
+#define clifford1_asin cayleydickson1_asin
+#define clifford1_atan cayleydickson1_atan
+#define clifford1_cosh cayleydickson1_cosh
+#define clifford1_sinh cayleydickson1_sinh
+#define clifford1_tanh cayleydickson1_tanh
+#define clifford1_acosh cayleydickson1_acosh
+#define clifford1_asinh cayleydickson1_asinh
+#define clifford1_atanh cayleydickson1_atanh
+#define clifford1_expm1 cayleydickson1_expm1
+#define clifford1_log1p cayleydickson1_log1p
+#define clifford1_radd cayleydickson1_radd
+#define clifford1_ladd cayleydickson1_ladd
+#define clifford1_rsub cayleydickson1_rsub
+#define clifford1_lsub cayleydickson1_lsub
+#define clifford1_rmul cayleydickson1_rmul
+#define clifford1_lmul cayleydickson1_lmul
+#define clifford1_rdiv cayleydickson1_rdiv
+#define clifford1_ldiv cayleydickson1_ldiv
+#define clifford1_rpow cayleydickson1_rpow
+#define clifford1_lpow cayleydickson1_lpow
+#define clifford1_mix cayleydickson1_mix
+
+#define clifford1_lmat cayleydickson1_lmat
+#define clifford1_rmat cayleydickson1_rmat
+
+
 #endif /* ALGPY_CLIFFORD1_H */
