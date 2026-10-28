@@ -21,6 +21,13 @@
 /* C99 <complex.h> defines complex as a macro; reserve this name for vec2. */
 #undef complex
 
+/* MSVC's complex math API uses a struct rather than the C99 complex type. */
+#ifdef _MSC_VER
+typedef _Dcomplex algpy_native_complex;
+#else
+typedef double _Complex algpy_native_complex;
+#endif
+
 typedef vec2 complex;
 
 static inline complex
@@ -242,9 +249,9 @@ complex_tan(complex a)
 static inline complex
 complex_acos(complex a)
 {
-    double _Complex z;
-    /* C99 complex has the layout of a double[2]. Copying preserves signed
-     * zeros on branch cuts without arithmetic on the components. */
+    algpy_native_complex z;
+    /* Both native types store consecutive real and imaginary doubles.
+     * Copying preserves signed zeros on branch cuts without arithmetic. */
     memcpy(&z, a.data, sizeof(z));
     z = cacos(z);
     return complex_make(creal(z), cimag(z));
@@ -253,7 +260,7 @@ complex_acos(complex a)
 static inline complex
 complex_asin(complex a)
 {
-    double _Complex z;
+    algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = casin(z);
     return complex_make(creal(z), cimag(z));
@@ -262,7 +269,7 @@ complex_asin(complex a)
 static inline complex
 complex_atan(complex a)
 {
-    double _Complex z;
+    algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = catan(z);
     return complex_make(creal(z), cimag(z));
@@ -291,7 +298,7 @@ complex_tanh(complex a)
 static inline complex
 complex_acosh(complex a)
 {
-    double _Complex z;
+    algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = cacosh(z);
     return complex_make(creal(z), cimag(z));
@@ -300,7 +307,7 @@ complex_acosh(complex a)
 static inline complex
 complex_asinh(complex a)
 {
-    double _Complex z;
+    algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = casinh(z);
     return complex_make(creal(z), cimag(z));
@@ -309,7 +316,7 @@ complex_asinh(complex a)
 static inline complex
 complex_atanh(complex a)
 {
-    double _Complex z;
+    algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = catanh(z);
     return complex_make(creal(z), cimag(z));
