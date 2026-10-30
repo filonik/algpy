@@ -46,15 +46,15 @@ specializations omit `k`.
 | `is_real`, `re`, `im`                             | Scalar methods; `np.real(x)` and `np.imag(x)` also work on scalars                                                    |
 | `pos`, `neg`                                      | Unary `+`/`-`, `np.positive`, `np.negative`                                                                           |
 | `add`, `sub`, `mul`, `div`, `pow`                 | Arithmetic operators and `np.add`, `np.subtract`, `np.multiply`, `np.divide`, `np.power`                              |
-| `lpow`, `rpow`                                   | `a.lpow(b) = exp(b * log(a))`, `a.rpow(b) = exp(log(a) * b)`                                                          |
-| `ipow`                                           | `x.ipow(n)` for a signed 64-bit integer exponent                                                                     |
+| `lpow`, `rpow`                                    | `a.lpow(b) = exp(b * log(a))`, `a.rpow(b) = exp(log(a) * b)`                                                          |
+| `ipow`                                            | `x.ipow(n)` for a signed 64-bit integer exponent                                                                      |
 | `equal`, `not_equal`                              | `==`, `!=`, `np.equal`, `np.not_equal`                                                                                |
 | `inv`, `square`, `conjugate`                      | Scalar methods, `np.reciprocal`, `np.square`, `np.conjugate`                                                          |
 | `exp`, `expm1`, `log`, `log1p`, `sqrt`            | Scalar methods and NumPy ufuncs with the same names                                                                   |
 | `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`       | Scalar methods and NumPy ufuncs with the same names                                                                   |
 | `asin`, `acos`, `atan`, `asinh`, `acosh`, `atanh` | Scalar methods; NumPy uses `arcsin`, `arccos`, `arctan`, `arcsinh`, `arccosh`, `arctanh` (also scalar method aliases) |
 | `norm`, `minpoly`, `eivals`                       | Scalar methods with the same names                                                                                    |
-| `lmat`, `rmat`                                  | Instance methods returning `(N, N)` NumPy `float64` arrays                                                              |
+| `lmat`, `rmat`                                    | Instance methods returning `(N, N)` NumPy `float64` arrays                                                            |
 | `mix`                                             | `x.mix(y, t)`, defined as `x * (inv(x) * y)**t` with those parentheses                                                |
 
 Throughout the project, `minpoly` means the **generic minimal polynomial**
@@ -131,10 +131,10 @@ functions with family-dependent result types; `norm` is the common entry point.
 
 The return type of `norm` is fixed by the C algebra specialization:
 
-| Algebras | C return type | Python return type |
-| --- | --- | --- |
-| `real`, `complex1`–`complex4`, `quaternion`, `octonion`, `sedenion`, `dual1`–`dual4` | `double` | Built-in `float` |
-| `splitcomplex1`–`splitcomplex4` and all parameterized general families | `complex` | Built-in `complex` |
+| Algebras                                                                             | C return type | Python return type |
+| ------------------------------------------------------------------------------------ | ------------- | ------------------ |
+| `real`, `complex1`–`complex4`, `quaternion`, `octonion`, `sedenion`, `dual1`–`dual4` | `double`      | Built-in `float`   |
+| `splitcomplex1`–`splitcomplex4` and all parameterized general families               | `complex`     | Built-in `complex` |
 
 Complex-valued norms always return Python `complex`, including `0j` and `1+0j`.
 Changing a general algebra's `K` parameters does not change this return type.
