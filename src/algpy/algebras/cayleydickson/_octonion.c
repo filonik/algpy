@@ -99,6 +99,13 @@ pyoctonion_hash(PyObject *self)
     octonion v = ((PyOctonion *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_OCTONION_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (octonion_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pyoctonion_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_OCTONION(octonion_pow(x, y));
+    return NEW_OCTONION(octonion_rpow(x, y));
 }
 
 #define OCTONION_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pyoctonion_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pyoctonion_lpow(PyObject *self, PyObject *other)
+{
+    octonion b;
+    int r;
+    r = octonion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyOctonion_FromValue(Py_TYPE(self),
+        octonion_lpow(((PyOctonion *)self)->v, b));
+}
+
+static PyObject *
+pyoctonion_rpow(PyObject *self, PyObject *other)
+{
+    octonion b;
+    int r;
+    r = octonion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyOctonion_FromValue(Py_TYPE(self),
+        octonion_rpow(((PyOctonion *)self)->v, b));
+}
+
+static PyObject *
 pyoctonion_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pyoctonion_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs
     return algpy_from_float(args, kwargs, npy_octonion, 8);
 }
 
+static PyObject *
+pyoctonion_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_OCTONION(octonion_ipow(((PyOctonion *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pyoctonion_methods[] = {
     {"to_float", (PyCFunction)pyoctonion_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyoctonion_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pyoctonion_methods[] = {
     {"to_re", pyoctonion_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pyoctonion_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pyoctonion_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pyoctonion_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pyoctonion_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pyoctonion_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pyoctonion_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pyoctonion_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pyoctonion_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pyoctonion_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pyoctonion_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pyoctonion_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pyoctonion_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pyoctonion_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pyoctonion_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pyoctonion_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pyoctonion_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pyoctonion_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pyoctonion_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pyoctonion_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pyoctonion_square, METH_NOARGS, "square."},
+    {"expm1", pyoctonion_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pyoctonion_log1p, METH_NOARGS, "log1p."},
+    {"sin", pyoctonion_sin, METH_NOARGS, "sin."},
+    {"cos", pyoctonion_cos, METH_NOARGS, "cos."},
+    {"tan", pyoctonion_tan, METH_NOARGS, "tan."},
+    {"asin", pyoctonion_asin, METH_NOARGS, "asin."},
+    {"acos", pyoctonion_acos, METH_NOARGS, "acos."},
+    {"atan", pyoctonion_atan, METH_NOARGS, "atan."},
+    {"sinh", pyoctonion_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pyoctonion_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pyoctonion_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pyoctonion_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pyoctonion_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pyoctonion_atanh, METH_NOARGS, "atanh."},
+    {"re", pyoctonion_re, METH_NOARGS, "re."},
+    {"im", pyoctonion_im, METH_NOARGS, "im."},
     {"arcsin", pyoctonion_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pyoctonion_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pyoctonion_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pyoctonion_methods[] = {
     {"basis", pyoctonion_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pyoctonion_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pyoctonion_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pyoctonion_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pyoctonion_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pyoctonion_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pyoctonion_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pyoctonion_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pyoctonion_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pyoctonion_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pyoctonion_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pyoctonion_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pyoctonion_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pyoctonion_exp, METH_NOARGS, "exp."},
     {"log", pyoctonion_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pyoctonion_spec = {
     .slots = pyoctonion_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npyoctonion_getitem(void *data, void *arr)
 {
     octonion v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_OCTONION(v);
 }
 
@@ -670,6 +740,9 @@ npyoctonion_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pyoctonion_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 8; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pyoctonion_nonzero(void *data, void *arr)
 {
     octonion v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec8_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pyoctonion_descr_proto = {
     &pyoctonion_arrfuncs,
 };
 
-#define OCTONION_CAST_FROM(name, type)                                       \
+#define OCTONION_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pyoctonion_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pyoctonion_descr_proto = {
         octonion *dst = (octonion *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = octonion_from_re((double)src[i]);                      \
+            dst[i] = octonion_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define OCTONION_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define OCTONION_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 OCTONION_REAL_TYPES(OCTONION_CAST_FROM)
 
 static int
 pyoctonion_register_casts(void)
 {
-#define REGISTER_OCTONION_CAST(name, type)                                   \
+#define REGISTER_OCTONION_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pyoctonion_register_ufuncs(PyObject *numpy)
         pyoctonion_register_loop(numpy, "subtract", loop_octonion_binary, 3, 0, octonion_sub) ||
         pyoctonion_register_loop(numpy, "multiply", loop_octonion_binary, 3, 0, octonion_mul) ||
         pyoctonion_register_loop(numpy, "divide", loop_octonion_binary, 3, 0, octonion_div) ||
-        pyoctonion_register_loop(numpy, "power", loop_octonion_binary, 3, 0, octonion_pow) ||
+        pyoctonion_register_loop(numpy, "power", loop_octonion_binary, 3, 0, octonion_rpow) ||
         pyoctonion_register_loop(numpy, "positive", loop_octonion_unary, 2, 0, octonion_pos) ||
         pyoctonion_register_loop(numpy, "negative", loop_octonion_unary, 2, 0, octonion_neg) ||
         pyoctonion_register_loop(numpy, "conjugate", loop_octonion_unary, 2, 0, octonion_conjugate) ||

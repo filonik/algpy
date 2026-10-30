@@ -6,6 +6,7 @@
 #ifndef ALGPY_SPLITCOMPLEX1_H
 #define ALGPY_SPLITCOMPLEX1_H
 
+#include <stdint.h>
 #include "../../fields/complex.h"
 
 #define ALGPY_SPLITCOMPLEX1_N 2
@@ -135,8 +136,43 @@ splitcomplex1_log(splitcomplex1 a)
     return splitcomplex1_apply(a, log);
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
 static inline splitcomplex1
-splitcomplex1_pow(splitcomplex1 a, splitcomplex1 b)
+splitcomplex1_ipow(splitcomplex1 a, int64_t b)
+{
+    splitcomplex1 result = splitcomplex1_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return splitcomplex1_mul(a, a);
+    }
+    if (b == -1) {
+        return splitcomplex1_inv(a);
+    }
+    if (b < 0) {
+        a = splitcomplex1_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = splitcomplex1_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = splitcomplex1_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline splitcomplex1
+splitcomplex1_rpow(splitcomplex1 a, splitcomplex1 b)
 {
     double ap = a.data[0] + a.data[1];
     double am = a.data[0] - a.data[1];
@@ -145,6 +181,18 @@ splitcomplex1_pow(splitcomplex1 a, splitcomplex1 b)
     double rp = pow(ap, bp);
     double rm = pow(am, bm);
     return splitcomplex1_make((rp + rm) / 2, (rp - rm) / 2);
+}
+
+static inline splitcomplex1
+splitcomplex1_pow(splitcomplex1 a, splitcomplex1 b)
+{
+    return splitcomplex1_rpow(a, b);
+}
+
+static inline splitcomplex1
+splitcomplex1_lpow(splitcomplex1 a, splitcomplex1 b)
+{
+    return splitcomplex1_rpow(a, b);
 }
 
 static inline splitcomplex1
@@ -329,15 +377,15 @@ splitcomplex1_ldiv(splitcomplex1 a, double b)
 }
 
 static inline splitcomplex1
-splitcomplex1_rpow(double a, splitcomplex1 b)
+splitcomplex1_rpows(double a, splitcomplex1 b)
 {
-    return splitcomplex1_pow(splitcomplex1_from_re(a), b);
+    return splitcomplex1_rpow(splitcomplex1_from_re(a), b);
 }
 
 static inline splitcomplex1
-splitcomplex1_lpow(splitcomplex1 a, double b)
+splitcomplex1_lpows(splitcomplex1 a, double b)
 {
-    return splitcomplex1_pow(a, splitcomplex1_from_re(b));
+    return splitcomplex1_rpow(a, splitcomplex1_from_re(b));
 }
 
 static inline splitcomplex1
@@ -356,7 +404,7 @@ static inline splitcomplex1
 splitcomplex1_mix(splitcomplex1 a, splitcomplex1 b, double t)
 {
     splitcomplex1 delta = splitcomplex1_mul(splitcomplex1_inv(a), b);
-    return splitcomplex1_mul(a, splitcomplex1_lpow(delta, t));
+    return splitcomplex1_mul(a, splitcomplex1_lpows(delta, t));
 }
 
 static inline complex
@@ -381,21 +429,19 @@ splitcomplex1_eivals(splitcomplex1 a, complex result[2])
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 splitcomplex1_lmat(splitcomplex1 a, double result[ALGPY_SPLITCOMPLEX1_N*ALGPY_SPLITCOMPLEX1_N])
 {
-    splitcomplex1 coeffs[ALGPY_SPLITCOMPLEX1_N * ALGPY_SPLITCOMPLEX1_N];
-    int row, col, i;
-    splitcomplex1_coeffs(coeffs);
-    for (row = 0; row < ALGPY_SPLITCOMPLEX1_N; row++) {
-        for (col = 0; col < ALGPY_SPLITCOMPLEX1_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_SPLITCOMPLEX1_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_SPLITCOMPLEX1_N + col].data[row];
-            }
-            result[row * ALGPY_SPLITCOMPLEX1_N + col] = value;
+    splitcomplex1 basis = {{0}};
+    splitcomplex1 product;
+    int row, col;
+    for (col = 0; col < ALGPY_SPLITCOMPLEX1_N; col++) {
+        basis.data[col] = 1;
+        product = splitcomplex1_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_SPLITCOMPLEX1_N; row++) {
+            result[row * ALGPY_SPLITCOMPLEX1_N + col] = product.data[row];
         }
     }
 }
@@ -403,16 +449,15 @@ splitcomplex1_lmat(splitcomplex1 a, double result[ALGPY_SPLITCOMPLEX1_N*ALGPY_SP
 static inline void
 splitcomplex1_rmat(splitcomplex1 a, double result[ALGPY_SPLITCOMPLEX1_N*ALGPY_SPLITCOMPLEX1_N])
 {
-    splitcomplex1 coeffs[ALGPY_SPLITCOMPLEX1_N * ALGPY_SPLITCOMPLEX1_N];
-    int row, col, i;
-    splitcomplex1_coeffs(coeffs);
+    splitcomplex1 basis = {{0}};
+    splitcomplex1 product;
+    int row, col;
     for (row = 0; row < ALGPY_SPLITCOMPLEX1_N; row++) {
+        basis.data[row] = 1;
+        product = splitcomplex1_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_SPLITCOMPLEX1_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_SPLITCOMPLEX1_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_SPLITCOMPLEX1_N + i].data[col];
-            }
-            result[row * ALGPY_SPLITCOMPLEX1_N + col] = value;
+            result[row * ALGPY_SPLITCOMPLEX1_N + col] = product.data[col];
         }
     }
 }

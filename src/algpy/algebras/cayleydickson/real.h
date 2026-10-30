@@ -1,12 +1,12 @@
 /*
- * Shared arithmetic of complex numbers (x + y*i), stored as a vec2.
+ * Arithmetic of real numbers, stored as a vec1.
  *
- * Pure C with no dependency on Python or NumPy. The parameter k is passed
- * explicitly to every operation that depends on it.
+ * Pure C with no dependency on Python or NumPy.
  */
 #ifndef ALGPY_REAL_H
 #define ALGPY_REAL_H
 
+#include <stdint.h>
 #include "../../fields/complex.h"
 
 #include "../../fields/double.h"
@@ -44,23 +44,22 @@ real_norm2(real a)
 static inline double
 real_norm(real a)
 {
-    return sqrt(real_norm2(a));
+    return fabs(a.data[0]);
 }
 
 static inline real
 real_inv(real a)
 {
-    double n = real_norm2(a);
-    return real_make(a.data[0] / n);
+    return real_make(1/a.data[0]);
 }
 
 static inline real
 real_div(real a, real b)
 {
-    return real_mul(a, real_inv(b));
+    return real_make(a.data[0]/b.data[0]);
 }
 
-/* Common algebra API. Unfinished operations return NaN components. */
+/* Common algebra API. */
 static inline real
 real_from_re(double a)
 {
@@ -229,10 +228,57 @@ real_atanh(real a)
     return real_make(atanh(a.data[0]));
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline real
+real_ipow(real a, int64_t b)
+{
+    real result = real_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return real_mul(a, a);
+    }
+    if (b == -1) {
+        return real_inv(a);
+    }
+    if (b < 0) {
+        a = real_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = real_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = real_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline real
+real_rpow(real a, real b)
+{
+    return real_make(double_pow(a.data[0], b.data[0]));
+}
+
 static inline real
 real_pow(real a, real b)
 {
-    return real_exp(real_mul(real_log(a), b));
+    return real_rpow(a, b);
+}
+
+static inline real
+real_lpow(real a, real b)
+{
+    return real_rpow(a, b);
 }
 
 static inline real
@@ -290,34 +336,34 @@ real_ldiv(real a, double b)
 }
 
 static inline real
-real_rpow(double a, real b)
+real_rpows(double a, real b)
 {
-    return real_pow(real_from_re(a), b);
+    return real_rpow(real_from_re(a), b);
 }
 
 static inline real
-real_lpow(real a, double b)
+real_lpows(real a, double b)
 {
-    return real_pow(a, real_from_re(b));
+    return real_rpow(a, real_from_re(b));
 }
 
 static inline real
 real_expm1(real a)
 {
-    return real_lsub(real_exp(a), 1);
+    return real_make(double_expm1(a.data[0]));
 }
 
 static inline real
 real_log1p(real a)
 {
-    return real_log(real_ladd(a, 1));
+    return real_make(double_log1p(a.data[0]));
 }
 
 static inline real
 real_mix(real a, real b, double t)
 {
     real delta = real_mul(real_inv(a), b);
-    return real_mul(a, real_lpow(delta, t));
+    return real_mul(a, real_lpows(delta, t));
 }
 
 static inline void
@@ -346,21 +392,19 @@ real_eivals(real a, complex result[1])
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 real_lmat(real a, double result[ALGPY_REAL_N*ALGPY_REAL_N])
 {
-    real coeffs[ALGPY_REAL_N * ALGPY_REAL_N];
-    int row, col, i;
-    real_coeffs(coeffs);
-    for (row = 0; row < ALGPY_REAL_N; row++) {
-        for (col = 0; col < ALGPY_REAL_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_REAL_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_REAL_N + col].data[row];
-            }
-            result[row * ALGPY_REAL_N + col] = value;
+    real basis = {{0}};
+    real product;
+    int row, col;
+    for (col = 0; col < ALGPY_REAL_N; col++) {
+        basis.data[col] = 1;
+        product = real_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_REAL_N; row++) {
+            result[row * ALGPY_REAL_N + col] = product.data[row];
         }
     }
 }
@@ -368,16 +412,15 @@ real_lmat(real a, double result[ALGPY_REAL_N*ALGPY_REAL_N])
 static inline void
 real_rmat(real a, double result[ALGPY_REAL_N*ALGPY_REAL_N])
 {
-    real coeffs[ALGPY_REAL_N * ALGPY_REAL_N];
-    int row, col, i;
-    real_coeffs(coeffs);
+    real basis = {{0}};
+    real product;
+    int row, col;
     for (row = 0; row < ALGPY_REAL_N; row++) {
+        basis.data[row] = 1;
+        product = real_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_REAL_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_REAL_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_REAL_N + i].data[col];
-            }
-            result[row * ALGPY_REAL_N + col] = value;
+            result[row * ALGPY_REAL_N + col] = product.data[col];
         }
     }
 }

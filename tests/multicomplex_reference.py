@@ -1,4 +1,4 @@
-"""Independent character decomposition with nilpotent Taylor coefficients."""
+"""Independent multicomplex character and nilpotent reference calculations."""
 import ctypes
 from functools import lru_cache
 import itertools
@@ -10,13 +10,8 @@ import subprocess
 import numpy as np
 import pytest
 
-from algpy import algebras
 from algpy.algebras import general
-from test_field_derivatives import FUNCTIONS, reference
-
-
-SIGNATURES = [signs for n in range(1, 5) for signs in itertools.product([-1, 0, 1], repeat=n)]
-
+from field_reference import FUNCTIONS, reference
 
 @lru_cache(None)
 def scalar_type(order):
@@ -92,43 +87,6 @@ def coefficients(parameters, name, seed=61):
     return result
 
 
-@pytest.fixture(params=SIGNATURES, ids=lambda signs: str(signs))
-def algebra(request):
-    signs = request.param
-    cls = scalar_type(len(signs))
-    return cls, signs
-
-
-@pytest.mark.parametrize("name,function", FUNCTIONS, ids=[name for name, _ in FUNCTIONS])
-def test_functions_for_every_signature(algebra, name, function):
-    cls, signs = algebra
-    for parameters in dict.fromkeys([signs, scaled(signs)]):
-        cls.K = parameters
-        rows = np.array([coefficients(parameters, name, seed) for seed in [61, 62]])
-        wanted = np.array([expected(parameters, function, row) for row in rows])
-        values = cls.from_float(rows)
-        output = np.empty(2*len(values), dtype=cls)[::2]
-        assert function(values[::-1], out=output) is output
-        np.testing.assert_allclose(cls.to_float(output), wanted[::-1], rtol=3e-9, atol=3e-10)
-        for value, result in zip(values, wanted):
-            np.testing.assert_allclose(cls.to_float(getattr(value, name)()), result,
-                                       rtol=3e-9, atol=3e-10)
-            np.testing.assert_allclose(cls.to_float(function(value)), result, rtol=3e-9, atol=3e-10)
-
-
-@pytest.mark.parametrize("name,function", FUNCTIONS, ids=[name for name, _ in FUNCTIONS])
-@pytest.mark.parametrize("family,parameter", [("complex", -1), ("splitcomplex", 1), ("dual", 0)])
-@pytest.mark.parametrize("order", [1, 2, 3, 4])
-def test_specialization_agreement(name, function, family, parameter, order):
-    cls = scalar_type(order)
-    cls.K = [parameter]*order
-    concrete = getattr(algebras, f"{family}{order}")
-    row = coefficients(tuple(cls.K), name)
-    actual = cls.to_float(function(cls.from_float(row)))
-    wanted = concrete.to_float(function(concrete.from_float(row)))
-    np.testing.assert_allclose(actual, wanted, rtol=2e-13, atol=2e-14)
-
-
 def multiply(parameters, a, b):
     result = np.zeros(len(a))
     for i, x in enumerate(a):
@@ -138,82 +96,7 @@ def multiply(parameters, a, b):
     return result
 
 
-def test_power_and_mix(algebra):
-    cls, signs = algebra
-    parameters = scaled(signs)
-    cls.K = parameters
-    xp = coefficients(parameters, "log")
-    yp = coefficients(parameters, "log", 62)
-    yp[0] = 1.25
-    x, y = cls.from_float(np.array([xp, yp]))
-    logarithm = expected(parameters, np.log, xp)
-    wanted = expected(parameters, np.exp, multiply(parameters, logarithm, yp))
-    np.testing.assert_allclose(cls.to_float(x**y), wanted, rtol=3e-9, atol=3e-10)
-    np.testing.assert_allclose(cls.to_float(np.power(np.array([x, y]), y))[0], wanted,
-                               rtol=3e-9, atol=3e-10)
-    np.testing.assert_allclose(cls.to_float(x**2), multiply(parameters, xp, xp), atol=3e-12)
-    wanted = expected(parameters, np.exp, math.log(2)*xp)
-    np.testing.assert_allclose(cls.to_float(2**x), wanted, rtol=3e-9, atol=3e-10)
-    for t in [0, 0.4, 1]:
-        delta = t*(expected(parameters, np.log, yp)-logarithm)
-        wanted = multiply(parameters, xp, expected(parameters, np.exp, delta))
-        np.testing.assert_allclose(cls.to_float(x.mix(y, t)), wanted, rtol=3e-9, atol=3e-10)
-
-
-def test_arithmetic_and_metadata(algebra):
-    cls, signs = algebra
-    parameters = scaled(signs)
-    cls.K = parameters
-    xp = coefficients(parameters, "log")
-    yp = coefficients(parameters, "log", 62)
-    x, y = cls.from_float(np.array([xp, yp]))
-    for actual, wanted in [(x*y, multiply(parameters, xp, yp)),
-                           (x/y, multiply(parameters, xp, expected(parameters, np.reciprocal, yp))),
-                           (x.inv(), expected(parameters, np.reciprocal, xp))]:
-        np.testing.assert_allclose(cls.to_float(actual), wanted, rtol=3e-9, atol=3e-10)
-    eigenvalues = []
-    for signs in itertools.product([-1, 1], repeat=len(parameters)):
-        factors = [sign*np.sqrt(complex(k)) for sign, k in zip(signs, parameters)]
-        eigenvalues.append(sum(xp[i]*np.prod([v for bit, v in enumerate(factors) if i & (1 << bit)])
-                               for i in range(cls.N)))
-    np.testing.assert_allclose(np.sort_complex(x.eivals()), np.sort_complex(eigenvalues),
-                               rtol=2e-13, atol=2e-14)
-    polynomial = np.polynomial.polynomial.polyfromroots(eigenvalues)
-    np.testing.assert_allclose(x.minpoly(), polynomial, rtol=3e-10, atol=3e-10)
-    assert type(x.norm()) is complex
-    assert x.norm() == pytest.approx(complex(polynomial[0].real)**(1/cls.N))
-
-
-@pytest.mark.parametrize("order", [1, 2, 3, 4])
-def test_real_component_powers(order):
-    cls = scalar_type(order)
-    cls.K = [4, 0.25, 9, 2][:order]
-    row = coefficients(tuple(cls.K), "log")
-    row[0] = -2
-    x = cls.from_float(row)
-    np.testing.assert_allclose(cls.to_float(x**2), multiply(cls.K, row, row), atol=3e-13)
-    divisor = cls(1, 0.5)
-    np.testing.assert_array_equal(cls.to_float(divisor**0), cls.to_float(cls.one()))
-
-
-@pytest.mark.parametrize("parameters", [(-4,), (0, -4), (4, 0, -4), (0, 4, -4, 0), (0, -4, -2, 0)])
-@pytest.mark.parametrize("name,function", [("log", np.log), ("sqrt", np.sqrt), ("asin", np.arcsin),
-                                           ("acos", np.arccos), ("acosh", np.arccosh)])
-def test_complex_continuation(parameters, name, function):
-    cls = scalar_type(len(parameters))
-    cls.K = parameters
-    row = np.zeros(cls.N)
-    row[0] = -2
-    row[1 << next(i for i, k in enumerate(parameters) if k < 0)] = 0.4
-    for bit, k in enumerate(parameters):
-        if k == 0:
-            row[1 << bit] = 0.1
-    wanted = expected(parameters, function, row)
-    np.testing.assert_allclose(cls.to_float(function(cls.from_float(row))), wanted,
-                               rtol=3e-9, atol=3e-10)
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def c_derivatives(tmp_path_factory):
     compiler = shutil.which("cc")
     if compiler is None:
@@ -268,20 +151,7 @@ void evaluate(int order, int function, int derivative, const double *parameters,
     return evaluate
 
 
-@pytest.mark.parametrize("order,offset", [(n, d) for n in range(1, 4) for d in range(1, 5-n)])
-@pytest.mark.parametrize("index,name,function", [(i, name, f) for i, (name, f) in enumerate(FUNCTIONS)],
-                         ids=[name for name, _ in FUNCTIONS])
-def test_derivative_helpers(c_derivatives, order, offset, index, name, function):
-    for signs in itertools.product([-1, 0, 1], repeat=order):
-        parameters = scaled(signs)
-        row = coefficients(parameters, name)
-        wanted = expected(parameters, function, row, offset)
-        actual = c_derivatives(parameters, index, offset, row)
-        np.testing.assert_allclose(actual, wanted, rtol=3e-9, atol=3e-10)
-
-
-@pytest.mark.parametrize("order", [1, 2, 3, 4])
-def test_standalone_header_and_apply(order, tmp_path):
+def check_standalone_header_and_apply(order, tmp_path):
     compiler = shutil.which("cc")
     if compiler is None:
         pytest.skip("C compiler unavailable")
@@ -316,8 +186,8 @@ int main(void) {{
         {prefix} wanted = {prefix}_mul(k, {prefix}_square(k, a), a);
         for (int i = 0; i < {2**order}; i++) assert(fabs(actual.data[i]-wanted.data[i]) < 1e-11);
         {prefix} two = {prefix}_from_re(2), three = {prefix}_from_re(3);
-        assert(fabs({prefix}_rpow(k, 2, three).data[0]-8) < 1e-11);
-        assert(fabs({prefix}_lpow(k, two, 3).data[0]-8) < 1e-11);
+        assert(fabs({prefix}_rpows(k, 2, three).data[0]-8) < 1e-11);
+        assert(fabs({prefix}_lpows(k, two, 3).data[0]-8) < 1e-11);
         assert(fabs({prefix}_mix(k, two, {prefix}_from_re(8), 0.5).data[0]-4) < 1e-11);
     }}
     return 0;

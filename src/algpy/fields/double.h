@@ -2,6 +2,7 @@
 #define ALGPY_DOUBLE_H
 
 #include <math.h>
+#include <stdint.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -36,6 +37,28 @@ static inline double
 double_square(double x)
 {
     return x*x;
+}
+
+/* Integer powers by squaring; unsigned magnitude also handles INT64_MIN. */
+static inline double
+double_ipow(double a, int64_t b)
+{
+    double result = 1;
+    uint64_t exponent = (uint64_t)b;
+    if (b < 0) {
+        a = 1/a;
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result *= a;
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a *= a;
+        }
+    }
+    return result;
 }
 
 /* Ordinary derivatives f^(N), not Taylor coefficients divided by N!.

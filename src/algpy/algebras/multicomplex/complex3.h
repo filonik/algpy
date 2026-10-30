@@ -1,6 +1,7 @@
 #ifndef ALGPY_COMPLEX3_H
 #define ALGPY_COMPLEX3_H
 
+#include <stdint.h>
 #include "../../vectorspaces/vec8.h"
 #include "complex2.h"
 
@@ -212,10 +213,57 @@ complex3_log(complex3 a)
     return complex3_apply(a, complex2_log);
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline complex3
+complex3_ipow(complex3 a, int64_t b)
+{
+    complex3 result = complex3_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return complex3_mul(a, a);
+    }
+    if (b == -1) {
+        return complex3_inv(a);
+    }
+    if (b < 0) {
+        a = complex3_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = complex3_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = complex3_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline complex3
+complex3_rpow(complex3 a, complex3 b)
+{
+    return complex3_exp(complex3_mul(complex3_log(a), b));
+}
+
 static inline complex3
 complex3_pow(complex3 a, complex3 b)
 {
-    return complex3_exp(complex3_mul(complex3_log(a), b));
+    return complex3_rpow(a, b);
+}
+
+static inline complex3
+complex3_lpow(complex3 a, complex3 b)
+{
+    return complex3_rpow(a, b);
 }
 
 static inline complex3
@@ -358,22 +406,22 @@ complex3_ldiv(complex3 a, double b)
 }
 
 static inline complex3
-complex3_rpow(double a, complex3 b)
+complex3_rpows(double a, complex3 b)
 {
-    return complex3_pow(complex3_from_re(a), b);
+    return complex3_rpow(complex3_from_re(a), b);
 }
 
 static inline complex3
-complex3_lpow(complex3 a, double b)
+complex3_lpows(complex3 a, double b)
 {
-    return complex3_pow(a, complex3_from_re(b));
+    return complex3_rpow(a, complex3_from_re(b));
 }
 
 static inline complex3
 complex3_mix(complex3 a, complex3 b, double t)
 {
     complex3 delta = complex3_mul(complex3_inv(a), b);
-    return complex3_mul(a, complex3_lpow(delta, t));
+    return complex3_mul(a, complex3_lpows(delta, t));
 }
 
 static inline void
@@ -455,21 +503,19 @@ complex3_eivals(complex3 a, complex result[8])
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 complex3_lmat(complex3 a, double result[ALGPY_COMPLEX3_N*ALGPY_COMPLEX3_N])
 {
-    complex3 coeffs[ALGPY_COMPLEX3_N * ALGPY_COMPLEX3_N];
-    int row, col, i;
-    complex3_coeffs(coeffs);
-    for (row = 0; row < ALGPY_COMPLEX3_N; row++) {
-        for (col = 0; col < ALGPY_COMPLEX3_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX3_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_COMPLEX3_N + col].data[row];
-            }
-            result[row * ALGPY_COMPLEX3_N + col] = value;
+    complex3 basis = {{0}};
+    complex3 product;
+    int row, col;
+    for (col = 0; col < ALGPY_COMPLEX3_N; col++) {
+        basis.data[col] = 1;
+        product = complex3_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_COMPLEX3_N; row++) {
+            result[row * ALGPY_COMPLEX3_N + col] = product.data[row];
         }
     }
 }
@@ -477,16 +523,15 @@ complex3_lmat(complex3 a, double result[ALGPY_COMPLEX3_N*ALGPY_COMPLEX3_N])
 static inline void
 complex3_rmat(complex3 a, double result[ALGPY_COMPLEX3_N*ALGPY_COMPLEX3_N])
 {
-    complex3 coeffs[ALGPY_COMPLEX3_N * ALGPY_COMPLEX3_N];
-    int row, col, i;
-    complex3_coeffs(coeffs);
+    complex3 basis = {{0}};
+    complex3 product;
+    int row, col;
     for (row = 0; row < ALGPY_COMPLEX3_N; row++) {
+        basis.data[row] = 1;
+        product = complex3_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_COMPLEX3_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX3_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_COMPLEX3_N + i].data[col];
-            }
-            result[row * ALGPY_COMPLEX3_N + col] = value;
+            result[row * ALGPY_COMPLEX3_N + col] = product.data[col];
         }
     }
 }

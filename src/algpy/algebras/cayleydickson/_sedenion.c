@@ -99,6 +99,13 @@ pysedenion_hash(PyObject *self)
     sedenion v = ((PySedenion *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_SEDENION_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (sedenion_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pysedenion_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_SEDENION(sedenion_pow(x, y));
+    return NEW_SEDENION(sedenion_rpow(x, y));
 }
 
 #define SEDENION_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pysedenion_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pysedenion_lpow(PyObject *self, PyObject *other)
+{
+    sedenion b;
+    int r;
+    r = sedenion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PySedenion_FromValue(Py_TYPE(self),
+        sedenion_lpow(((PySedenion *)self)->v, b));
+}
+
+static PyObject *
+pysedenion_rpow(PyObject *self, PyObject *other)
+{
+    sedenion b;
+    int r;
+    r = sedenion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PySedenion_FromValue(Py_TYPE(self),
+        sedenion_rpow(((PySedenion *)self)->v, b));
+}
+
+static PyObject *
 pysedenion_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pysedenion_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs
     return algpy_from_float(args, kwargs, npy_sedenion, 16);
 }
 
+static PyObject *
+pysedenion_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_SEDENION(sedenion_ipow(((PySedenion *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pysedenion_methods[] = {
     {"to_float", (PyCFunction)pysedenion_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysedenion_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pysedenion_methods[] = {
     {"to_re", pysedenion_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pysedenion_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pysedenion_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pysedenion_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pysedenion_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pysedenion_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pysedenion_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pysedenion_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pysedenion_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pysedenion_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pysedenion_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pysedenion_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pysedenion_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pysedenion_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pysedenion_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pysedenion_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pysedenion_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pysedenion_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pysedenion_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pysedenion_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pysedenion_square, METH_NOARGS, "square."},
+    {"expm1", pysedenion_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pysedenion_log1p, METH_NOARGS, "log1p."},
+    {"sin", pysedenion_sin, METH_NOARGS, "sin."},
+    {"cos", pysedenion_cos, METH_NOARGS, "cos."},
+    {"tan", pysedenion_tan, METH_NOARGS, "tan."},
+    {"asin", pysedenion_asin, METH_NOARGS, "asin."},
+    {"acos", pysedenion_acos, METH_NOARGS, "acos."},
+    {"atan", pysedenion_atan, METH_NOARGS, "atan."},
+    {"sinh", pysedenion_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pysedenion_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pysedenion_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pysedenion_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pysedenion_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pysedenion_atanh, METH_NOARGS, "atanh."},
+    {"re", pysedenion_re, METH_NOARGS, "re."},
+    {"im", pysedenion_im, METH_NOARGS, "im."},
     {"arcsin", pysedenion_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pysedenion_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pysedenion_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pysedenion_methods[] = {
     {"basis", pysedenion_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pysedenion_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pysedenion_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pysedenion_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pysedenion_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pysedenion_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pysedenion_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pysedenion_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pysedenion_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pysedenion_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pysedenion_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pysedenion_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pysedenion_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pysedenion_exp, METH_NOARGS, "exp."},
     {"log", pysedenion_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pysedenion_spec = {
     .slots = pysedenion_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 16; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npysedenion_getitem(void *data, void *arr)
 {
     sedenion v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_SEDENION(v);
 }
 
@@ -670,6 +740,9 @@ npysedenion_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pysedenion_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 16; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pysedenion_nonzero(void *data, void *arr)
 {
     sedenion v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec16_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pysedenion_descr_proto = {
     &pysedenion_arrfuncs,
 };
 
-#define SEDENION_CAST_FROM(name, type)                                       \
+#define SEDENION_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pysedenion_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pysedenion_descr_proto = {
         sedenion *dst = (sedenion *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = sedenion_from_re((double)src[i]);                      \
+            dst[i] = sedenion_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define SEDENION_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define SEDENION_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 SEDENION_REAL_TYPES(SEDENION_CAST_FROM)
 
 static int
 pysedenion_register_casts(void)
 {
-#define REGISTER_SEDENION_CAST(name, type)                                   \
+#define REGISTER_SEDENION_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pysedenion_register_ufuncs(PyObject *numpy)
         pysedenion_register_loop(numpy, "subtract", loop_sedenion_binary, 3, 0, sedenion_sub) ||
         pysedenion_register_loop(numpy, "multiply", loop_sedenion_binary, 3, 0, sedenion_mul) ||
         pysedenion_register_loop(numpy, "divide", loop_sedenion_binary, 3, 0, sedenion_div) ||
-        pysedenion_register_loop(numpy, "power", loop_sedenion_binary, 3, 0, sedenion_pow) ||
+        pysedenion_register_loop(numpy, "power", loop_sedenion_binary, 3, 0, sedenion_rpow) ||
         pysedenion_register_loop(numpy, "positive", loop_sedenion_unary, 2, 0, sedenion_pos) ||
         pysedenion_register_loop(numpy, "negative", loop_sedenion_unary, 2, 0, sedenion_neg) ||
         pysedenion_register_loop(numpy, "conjugate", loop_sedenion_unary, 2, 0, sedenion_conjugate) ||

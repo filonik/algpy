@@ -8,6 +8,7 @@
 
 #define ALGPY_DUAL1_N 2
 
+#include <stdint.h>
 #include "../../fields/double.h"
 #include "../../fields/complex.h"
 #include "../../vectorspaces/vec2.h"
@@ -206,10 +207,57 @@ dual1_atanh(dual1 a)
 }
 
 /* Real analytic power: requires a positive real part for log(a). */
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline dual1
+dual1_ipow(dual1 a, int64_t b)
+{
+    dual1 result = dual1_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return dual1_mul(a, a);
+    }
+    if (b == -1) {
+        return dual1_inv(a);
+    }
+    if (b < 0) {
+        a = dual1_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = dual1_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = dual1_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline dual1
+dual1_rpow(dual1 a, dual1 b)
+{
+    return dual1_exp(dual1_mul(dual1_log(a), b));
+}
+
 static inline dual1
 dual1_pow(dual1 a, dual1 b)
 {
-    return dual1_exp(dual1_mul(dual1_log(a), b));
+    return dual1_rpow(a, b);
+}
+
+static inline dual1
+dual1_lpow(dual1 a, dual1 b)
+{
+    return dual1_rpow(a, b);
 }
 
 static inline void
@@ -333,15 +381,15 @@ dual1_ldiv(dual1 a, double b)
 }
 
 static inline dual1
-dual1_rpow(double a, dual1 b)
+dual1_rpows(double a, dual1 b)
 {
-    return dual1_pow(dual1_from_re(a), b);
+    return dual1_rpow(dual1_from_re(a), b);
 }
 
 static inline dual1
-dual1_lpow(dual1 a, double b)
+dual1_lpows(dual1 a, double b)
 {
-    return dual1_pow(a, dual1_from_re(b));
+    return dual1_rpow(a, dual1_from_re(b));
 }
 
 static inline dual1
@@ -360,7 +408,7 @@ static inline dual1
 dual1_mix(dual1 a, dual1 b, double t)
 {
     dual1 delta = dual1_mul(dual1_inv(a), b);
-    return dual1_mul(a, dual1_lpow(delta, t));
+    return dual1_mul(a, dual1_lpows(delta, t));
 }
 
 static inline double
@@ -713,21 +761,19 @@ dual1_atanh_deriv3(dual1 a)
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 dual1_lmat(dual1 a, double result[ALGPY_DUAL1_N*ALGPY_DUAL1_N])
 {
-    dual1 coeffs[ALGPY_DUAL1_N * ALGPY_DUAL1_N];
-    int row, col, i;
-    dual1_coeffs(coeffs);
-    for (row = 0; row < ALGPY_DUAL1_N; row++) {
-        for (col = 0; col < ALGPY_DUAL1_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_DUAL1_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_DUAL1_N + col].data[row];
-            }
-            result[row * ALGPY_DUAL1_N + col] = value;
+    dual1 basis = {{0}};
+    dual1 product;
+    int row, col;
+    for (col = 0; col < ALGPY_DUAL1_N; col++) {
+        basis.data[col] = 1;
+        product = dual1_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_DUAL1_N; row++) {
+            result[row * ALGPY_DUAL1_N + col] = product.data[row];
         }
     }
 }
@@ -735,16 +781,15 @@ dual1_lmat(dual1 a, double result[ALGPY_DUAL1_N*ALGPY_DUAL1_N])
 static inline void
 dual1_rmat(dual1 a, double result[ALGPY_DUAL1_N*ALGPY_DUAL1_N])
 {
-    dual1 coeffs[ALGPY_DUAL1_N * ALGPY_DUAL1_N];
-    int row, col, i;
-    dual1_coeffs(coeffs);
+    dual1 basis = {{0}};
+    dual1 product;
+    int row, col;
     for (row = 0; row < ALGPY_DUAL1_N; row++) {
+        basis.data[row] = 1;
+        product = dual1_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_DUAL1_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_DUAL1_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_DUAL1_N + i].data[col];
-            }
-            result[row * ALGPY_DUAL1_N + col] = value;
+            result[row * ALGPY_DUAL1_N + col] = product.data[col];
         }
     }
 }

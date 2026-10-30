@@ -94,6 +94,13 @@ pycomplex1_hash(PyObject *self)
     complex1 v = ((PyComplex1 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_COMPLEX1_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (v.data[1] == 0) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -169,7 +176,7 @@ pycomplex1_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_COMPLEX1(complex1_pow(x, y));
+    return NEW_COMPLEX1(complex1_rpow(x, y));
 }
 
 #define COMPLEX1_UNARY(name, expr)                                           \
@@ -441,6 +448,40 @@ pycomplex1_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pycomplex1_lpow(PyObject *self, PyObject *other)
+{
+    complex1 b;
+    int r;
+    r = complex1_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex1_FromValue(Py_TYPE(self),
+        complex1_lpow(((PyComplex1 *)self)->v, b));
+}
+
+static PyObject *
+pycomplex1_rpow(PyObject *self, PyObject *other)
+{
+    complex1 b;
+    int r;
+    r = complex1_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex1_FromValue(Py_TYPE(self),
+        complex1_rpow(((PyComplex1 *)self)->v, b));
+}
+
+static PyObject *
 pycomplex1_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -474,6 +515,16 @@ pycomplex1_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs
     return algpy_from_float(args, kwargs, npy_complex1, 2);
 }
 
+static PyObject *
+pycomplex1_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PyComplex1_FromValue(Py_TYPE(self), complex1_ipow(((PyComplex1 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pycomplex1_methods[] = {
     {"to_float", (PyCFunction)pycomplex1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -481,18 +532,21 @@ static PyMethodDef pycomplex1_methods[] = {
     {"to_re", pycomplex1_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pycomplex1_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pycomplex1_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"inv", pycomplex1_inv, METH_NOARGS, "inv. See the C header for TODO status."},
-    {"square", pycomplex1_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pycomplex1_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pycomplex1_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"asin", pycomplex1_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pycomplex1_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pycomplex1_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"asinh", pycomplex1_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pycomplex1_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pycomplex1_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pycomplex1_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pycomplex1_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"lpow", pycomplex1_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pycomplex1_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pycomplex1_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
+    {"inv", pycomplex1_inv, METH_NOARGS, "inv."},
+    {"square", pycomplex1_square, METH_NOARGS, "square."},
+    {"expm1", pycomplex1_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pycomplex1_log1p, METH_NOARGS, "log1p."},
+    {"asin", pycomplex1_asin, METH_NOARGS, "asin."},
+    {"acos", pycomplex1_acos, METH_NOARGS, "acos."},
+    {"atan", pycomplex1_atan, METH_NOARGS, "atan."},
+    {"asinh", pycomplex1_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pycomplex1_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pycomplex1_atanh, METH_NOARGS, "atanh."},
+    {"re", pycomplex1_re, METH_NOARGS, "re."},
+    {"im", pycomplex1_im, METH_NOARGS, "im."},
     {"arcsin", pycomplex1_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pycomplex1_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pycomplex1_atan, METH_NOARGS, "Alias for atan."},
@@ -509,7 +563,7 @@ static PyMethodDef pycomplex1_methods[] = {
     {"conjugate", pycomplex1_conjugate, METH_NOARGS, "Complex conjugate."},
     {"lmat", pycomplex1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pycomplex1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pycomplex1_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pycomplex1_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pycomplex1_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pycomplex1_exp, METH_NOARGS, "Complex exponential."},
     {"log", pycomplex1_log, METH_NOARGS, "Principal complex logarithm."},
@@ -609,11 +663,27 @@ static PyType_Spec pycomplex1_spec = {
     .slots = pycomplex1_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 2; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npycomplex1_getitem(void *data, void *arr)
 {
     complex1 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_COMPLEX1(v);
 }
 
@@ -643,6 +713,9 @@ npycomplex1_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -660,17 +733,7 @@ pycomplex1_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 2; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -687,6 +750,9 @@ pycomplex1_nonzero(void *data, void *arr)
 {
     complex1 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return (v.data[0] != 0 || v.data[1] != 0) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -700,7 +766,7 @@ static PyArray_DescrProto pycomplex1_descr_proto = {
     &pycomplex1_arrfuncs,
 };
 
-#define COMPLEX1_CAST_FROM(name, type)                                       \
+#define COMPLEX1_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pycomplex1_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -709,23 +775,33 @@ static PyArray_DescrProto pycomplex1_descr_proto = {
         complex1 *dst = (complex1 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = complex1_make((double)src[i], 0);                      \
+            dst[i] = complex1_make(convert(src[i]), 0);                      \
         }                                                                    \
     }
 
-#define COMPLEX1_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define COMPLEX1_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 COMPLEX1_REAL_TYPES(COMPLEX1_CAST_FROM)
 
 static int
 pycomplex1_register_casts(void)
 {
-#define REGISTER_COMPLEX1_CAST(name, type)                                   \
+#define REGISTER_COMPLEX1_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -832,7 +908,7 @@ pycomplex1_register_ufuncs(PyObject *numpy)
         pycomplex1_register_loop(numpy, "subtract", loop_complex1_binary, 3, 0, complex1_sub) ||
         pycomplex1_register_loop(numpy, "multiply", loop_complex1_binary, 3, 0, complex1_mul) ||
         pycomplex1_register_loop(numpy, "divide", loop_complex1_binary, 3, 0, complex1_div) ||
-        pycomplex1_register_loop(numpy, "power", loop_complex1_binary, 3, 0, complex1_pow) ||
+        pycomplex1_register_loop(numpy, "power", loop_complex1_binary, 3, 0, complex1_rpow) ||
         pycomplex1_register_loop(numpy, "positive", loop_complex1_unary, 2, 0, complex1_pos) ||
         pycomplex1_register_loop(numpy, "negative", loop_complex1_unary, 2, 0, complex1_neg) ||
         pycomplex1_register_loop(numpy, "conjugate", loop_complex1_unary, 2, 0, complex1_conjugate) ||

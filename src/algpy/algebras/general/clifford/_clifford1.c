@@ -120,6 +120,13 @@ pycl1_hash(PyObject *self)
     clifford1 v = ((PyCL1 *)self)->v;
     PyObject *obj;
     Py_hash_t h;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_CLIFFORD1_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (v.data[1] == 0) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -138,9 +145,14 @@ pycl1_hash(PyObject *self)
 static Info *
 binary_info(PyObject *a, PyObject *b)
 {
-    PyObject *o = PyType_GetSlot(Py_TYPE(a), Py_tp_new) == (void *)pycl1_new
-                  ? a : b;
-    return info_of_type(Py_TYPE(o));
+    PyTypeObject *type;
+    /* A subclass may override __new__; recognize its algebra base type. */
+    for (type = Py_TYPE(a); type != NULL; type = type->tp_base) {
+        if (PyType_GetSlot(type, Py_tp_new) == (void *)pycl1_new) {
+            return info_of_type(Py_TYPE(a));
+        }
+    }
+    return info_of_type(Py_TYPE(b));
 }
 
 static PyObject *
@@ -621,6 +633,48 @@ pycl1_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pycl1_lpow(PyObject *self, PyObject *other)
+{
+    clifford1 b;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    r = cl1_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return cl1_from_value(Py_TYPE(self),
+        clifford1_lpow(info->k, ((PyCL1 *)self)->v, b));
+}
+
+static PyObject *
+pycl1_rpow(PyObject *self, PyObject *other)
+{
+    clifford1 b;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    r = cl1_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return cl1_from_value(Py_TYPE(self),
+        clifford1_rpow(info->k, ((PyCL1 *)self)->v, b));
+}
+
+static PyObject *
 pycl1_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -666,6 +720,20 @@ pycl1_from_float(PyObject *cls, PyObject *args, PyObject *kwargs)
     return algpy_from_float(args, kwargs, info->typenum, 2);
 }
 
+static PyObject *
+pycl1_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return cl1_from_value(Py_TYPE(self), clifford1_ipow(info->k, ((PyCL1 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pycl1_methods[] = {
     {"to_float", (PyCFunction)pycl1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycl1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -673,27 +741,30 @@ static PyMethodDef pycl1_methods[] = {
     {"to_re", pycl1_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pycl1_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pycl1_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"inv", pycl1_inv, METH_NOARGS, "inv. See the C header for TODO status."},
-    {"square", pycl1_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"exp", pycl1_exp, METH_NOARGS, "exp. See the C header for TODO status."},
-    {"expm1", pycl1_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log", pycl1_log, METH_NOARGS, "log. See the C header for TODO status."},
-    {"log1p", pycl1_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sqrt", pycl1_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
-    {"sin", pycl1_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pycl1_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pycl1_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pycl1_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pycl1_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pycl1_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pycl1_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pycl1_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pycl1_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pycl1_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pycl1_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pycl1_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pycl1_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pycl1_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"lpow", pycl1_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pycl1_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pycl1_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
+    {"inv", pycl1_inv, METH_NOARGS, "inv."},
+    {"square", pycl1_square, METH_NOARGS, "square."},
+    {"exp", pycl1_exp, METH_NOARGS, "exp."},
+    {"expm1", pycl1_expm1, METH_NOARGS, "expm1."},
+    {"log", pycl1_log, METH_NOARGS, "log."},
+    {"log1p", pycl1_log1p, METH_NOARGS, "log1p."},
+    {"sqrt", pycl1_sqrt, METH_NOARGS, "sqrt."},
+    {"sin", pycl1_sin, METH_NOARGS, "sin."},
+    {"cos", pycl1_cos, METH_NOARGS, "cos."},
+    {"tan", pycl1_tan, METH_NOARGS, "tan."},
+    {"asin", pycl1_asin, METH_NOARGS, "asin."},
+    {"acos", pycl1_acos, METH_NOARGS, "acos."},
+    {"atan", pycl1_atan, METH_NOARGS, "atan."},
+    {"sinh", pycl1_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pycl1_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pycl1_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pycl1_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pycl1_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pycl1_atanh, METH_NOARGS, "atanh."},
+    {"re", pycl1_re, METH_NOARGS, "re."},
+    {"im", pycl1_im, METH_NOARGS, "im."},
     {"arcsin", pycl1_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pycl1_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pycl1_atan, METH_NOARGS, "Alias for atan."},
@@ -710,7 +781,7 @@ static PyMethodDef pycl1_methods[] = {
     {"norm2", pycl1_norm2, METH_NOARGS, "Norm x*x - k*y*y."},
     {"lmat", pycl1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pycl1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pycl1_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
+    {"minpoly", pycl1_minpoly, METH_NOARGS, "Coefficients of the generic minimal polynomial."},
     {"eivals", pycl1_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pycl1_reduce, METH_NOARGS, "Support for pickle."},
     {NULL, NULL, 0, NULL}
@@ -788,7 +859,7 @@ pycl1_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return cl1_from_value((PyTypeObject *)info->type, clifford1_pow(info->k, x, y));
+    return cl1_from_value((PyTypeObject *)info->type, clifford1_rpow(info->k, x, y));
 }
 
 static PyType_Slot pycl1_slots[] = {
@@ -827,12 +898,28 @@ static PyType_Spec pycl1_spec = {
 
 /* NumPy dtype support */
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 2; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npycl1_getitem(void *data, void *arr)
 {
     clifford1 v;
     PyArray_Descr *descr = PyArray_DESCR((PyArrayObject *)arr);
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return cl1_from_value(descr->typeobj, v);
 }
 
@@ -873,21 +960,11 @@ npycl1_setitem(PyObject *item, void *data, void *arr)
         Py_DECREF(seq);
         v = clifford1_make(d[0], d[1]);
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
-}
-
-static void
-swap_bytes(char *p)
-{
-    int i, j;
-    for (i = 0; i < 2; i++) {
-        for (j = 0; j < 4; j++) {
-            char t = p[8 * i + j];
-            p[8 * i + j] = p[8 * i + 7 - j];
-            p[8 * i + 7 - j] = t;
-        }
-    }
 }
 
 static void
@@ -924,6 +1001,9 @@ npycl1_nonzero(void *data, void *arr)
 {
     clifford1 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec2_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -933,7 +1013,7 @@ typedef struct { char c; clifford1 v; } align_test;
 
 /* Casts from the builtin real types (target type is found via `toarr`) */
 
-#define CL1_CAST_FROM(name, type)                                          \
+#define CL1_CAST_FROM(name, type, convert)                                          \
     static void                                                            \
     npycast_##name##_to_cl1(void *from, void *to, npy_intp n,              \
                             void *fromarr, void *toarr)                    \
@@ -942,31 +1022,33 @@ typedef struct { char c; clifford1 v; } align_test;
         clifford1 *dst = (clifford1 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = clifford1_make((double)src[i], 0);                \
+            dst[i] = clifford1_make(convert(src[i]), 0);                \
         }                                                                  \
     }
 
-#define CL1_REAL_TYPES(X)                                                  \
-    X(BOOL, npy_bool)                                                      \
-    X(BYTE, npy_byte)                                                      \
-    X(UBYTE, npy_ubyte)                                                    \
-    X(SHORT, npy_short)                                                    \
-    X(USHORT, npy_ushort)                                                  \
-    X(INT, npy_int)                                                        \
-    X(UINT, npy_uint)                                                      \
-    X(LONG, npy_long)                                                      \
-    X(ULONG, npy_ulong)                                                    \
-    X(LONGLONG, npy_longlong)                                              \
-    X(ULONGLONG, npy_ulonglong)                                            \
-    X(FLOAT, npy_float)                                                    \
-    X(DOUBLE, npy_double)
+#define CL1_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 CL1_REAL_TYPES(CL1_CAST_FROM)
 
 static int
 register_casts(int typenum)
 {
-#define REGISTER_CAST(name, type)                                          \
+#define REGISTER_CAST(name, type, convert)                                          \
     {                                                                      \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);           \
         if (from == NULL) {                                                \
@@ -1119,7 +1201,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("subtract", op_sub) ||
         BIN("multiply", clifford1_mul) ||
         BIN("divide", clifford1_div) ||
-        BIN("power", clifford1_pow) ||
+        BIN("power", clifford1_rpow) ||
         UN("positive", clifford1_pos) ||
         UN("negative", clifford1_neg) ||
         UN("conjugate", clifford1_conjugate) ||

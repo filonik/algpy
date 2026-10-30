@@ -9,6 +9,7 @@
 #ifndef ALGPY_MULTICOMPLEX4_H
 #define ALGPY_MULTICOMPLEX4_H
 
+#include <stdint.h>
 #include "../../../fields/complex.h"
 
 #define ALGPY_MULTICOMPLEX4_N 16
@@ -630,17 +631,52 @@ multicomplex4_atanh(vec4 k, multicomplex4 a)
     return multicomplex4_apply(k, a, multicomplex3_atanh, multicomplex3_atanh_deriv1);
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
 static inline multicomplex4
-multicomplex4_pow(vec4 k, multicomplex4 a, multicomplex4 b)
+multicomplex4_ipow(vec4 k, multicomplex4 a, int64_t b)
+{
+    multicomplex4 result = multicomplex4_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return multicomplex4_mul(k, a, a);
+    }
+    if (b == -1) {
+        return multicomplex4_inv(k, a);
+    }
+    if (b < 0) {
+        a = multicomplex4_inv(k, a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = multicomplex4_mul(k, result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = multicomplex4_mul(k, a, a);
+        }
+    }
+    return result;
+}
+
+static inline multicomplex4
+multicomplex4_rpow(vec4 k, multicomplex4 a, multicomplex4 b)
 {
     if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
-        return complex4_pow(a, b);
+        return complex4_rpow(a, b);
     }
     if (k.data[0] == 1 && k.data[1] == 1 && k.data[2] == 1 && k.data[3] == 1) {
-        return splitcomplex4_pow(a, b);
+        return splitcomplex4_rpow(a, b);
     }
     if (k.data[0] == 0 && k.data[1] == 0 && k.data[2] == 0 && k.data[3] == 0) {
-        return dual4_pow(a, b);
+        return dual4_rpow(a, b);
     }
     vec3 base = {{k.data[0], k.data[1], k.data[2]}};
     multicomplex3 u = multicomplex3_make(a.data[0], a.data[1], a.data[2], a.data[3], a.data[4], a.data[5], a.data[6], a.data[7]);
@@ -655,8 +691,8 @@ multicomplex4_pow(vec4 k, multicomplex4 a, multicomplex4 b)
     }
     if (k.data[3] > 0) {
         double s = sqrt(k.data[3]);
-        p = multicomplex3_pow(base, multicomplex3_add(u, vec8_scale(v, s)), multicomplex3_add(bu, vec8_scale(bv, s)));
-        q = multicomplex3_pow(base, multicomplex3_sub(u, vec8_scale(v, s)), multicomplex3_sub(bu, vec8_scale(bv, s)));
+        p = multicomplex3_rpow(base, multicomplex3_add(u, vec8_scale(v, s)), multicomplex3_add(bu, vec8_scale(bv, s)));
+        q = multicomplex3_rpow(base, multicomplex3_sub(u, vec8_scale(v, s)), multicomplex3_sub(bu, vec8_scale(bv, s)));
         for (i = 0; i < 8; i++) {
             result.data[i] = (p.data[i]+q.data[i])/2;
             result.data[i+8] = ((p.data[i]-q.data[i])/s)/2;
@@ -684,7 +720,7 @@ multicomplex4_pow(vec4 k, multicomplex4 a, multicomplex4 b)
     else {
         /* Bring the first negative generator into the lower algebra. */
         vec4 swapped = {{k.data[3], k.data[1], k.data[2], k.data[0]}};
-        return multicomplex4_swap_outer(multicomplex4_pow(swapped, multicomplex4_swap_outer(a), multicomplex4_swap_outer(b)));
+        return multicomplex4_swap_outer(multicomplex4_rpow(swapped, multicomplex4_swap_outer(a), multicomplex4_swap_outer(b)));
     }
     double outer_root = sqrt(-k.data[3]);
     double inner_root = sqrt(-inner);
@@ -697,13 +733,25 @@ multicomplex4_pow(vec4 k, multicomplex4 a, multicomplex4 b)
         jv.data[i] = v.data[i^bit]*(i & bit ? odd : even);
         jbv.data[i] = bv.data[i^bit]*(i & bit ? odd : even);
     }
-    p = multicomplex3_pow(base, multicomplex3_add(u, jv), multicomplex3_add(bu, jbv));
-    q = multicomplex3_pow(base, multicomplex3_sub(u, jv), multicomplex3_sub(bu, jbv));
+    p = multicomplex3_rpow(base, multicomplex3_add(u, jv), multicomplex3_add(bu, jbv));
+    q = multicomplex3_rpow(base, multicomplex3_sub(u, jv), multicomplex3_sub(bu, jbv));
     for (i = 0; i < 8; i++) {
         result.data[i] = (p.data[i]+q.data[i])/2;
         result.data[i+8] = ((p.data[i^bit]-q.data[i^bit])/(i & bit ? even : odd))/2;
     }
     return result;
+}
+
+static inline multicomplex4
+multicomplex4_pow(vec4 k, multicomplex4 a, multicomplex4 b)
+{
+    return multicomplex4_rpow(k, a, b);
+}
+
+static inline multicomplex4
+multicomplex4_lpow(vec4 k, multicomplex4 a, multicomplex4 b)
+{
+    return multicomplex4_rpow(k, a, b);
 }
 
 static inline multicomplex4
@@ -749,15 +797,15 @@ multicomplex4_ldiv(vec4 k, multicomplex4 a, double b)
 }
 
 static inline multicomplex4
-multicomplex4_rpow(vec4 k, double a, multicomplex4 b)
+multicomplex4_rpows(vec4 k, double a, multicomplex4 b)
 {
-    return multicomplex4_pow(k, multicomplex4_from_re(a), b);
+    return multicomplex4_rpow(k, multicomplex4_from_re(a), b);
 }
 
 static inline multicomplex4
-multicomplex4_lpow(vec4 k, multicomplex4 a, double b)
+multicomplex4_lpows(vec4 k, multicomplex4 a, double b)
 {
-    return multicomplex4_pow(k, a, multicomplex4_from_re(b));
+    return multicomplex4_rpow(k, a, multicomplex4_from_re(b));
 }
 
 static inline multicomplex4
@@ -794,25 +842,23 @@ static inline multicomplex4
 multicomplex4_mix(vec4 k, multicomplex4 a, multicomplex4 b, double t)
 {
     multicomplex4 delta = multicomplex4_mul(k, multicomplex4_inv(k, a), b);
-    return multicomplex4_mul(k, a, multicomplex4_lpow(k, delta, t));
+    return multicomplex4_mul(k, a, multicomplex4_lpows(k, delta, t));
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 multicomplex4_lmat(vec4 k, multicomplex4 a, double result[ALGPY_MULTICOMPLEX4_N*ALGPY_MULTICOMPLEX4_N])
 {
-    multicomplex4 coeffs[ALGPY_MULTICOMPLEX4_N * ALGPY_MULTICOMPLEX4_N];
-    int row, col, i;
-    multicomplex4_coeffs(k, coeffs);
-    for (row = 0; row < ALGPY_MULTICOMPLEX4_N; row++) {
-        for (col = 0; col < ALGPY_MULTICOMPLEX4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_MULTICOMPLEX4_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_MULTICOMPLEX4_N + col].data[row];
-            }
-            result[row * ALGPY_MULTICOMPLEX4_N + col] = value;
+    multicomplex4 basis = {{0}};
+    multicomplex4 product;
+    int row, col;
+    for (col = 0; col < ALGPY_MULTICOMPLEX4_N; col++) {
+        basis.data[col] = 1;
+        product = multicomplex4_mul(k, a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_MULTICOMPLEX4_N; row++) {
+            result[row * ALGPY_MULTICOMPLEX4_N + col] = product.data[row];
         }
     }
 }
@@ -820,16 +866,15 @@ multicomplex4_lmat(vec4 k, multicomplex4 a, double result[ALGPY_MULTICOMPLEX4_N*
 static inline void
 multicomplex4_rmat(vec4 k, multicomplex4 a, double result[ALGPY_MULTICOMPLEX4_N*ALGPY_MULTICOMPLEX4_N])
 {
-    multicomplex4 coeffs[ALGPY_MULTICOMPLEX4_N * ALGPY_MULTICOMPLEX4_N];
-    int row, col, i;
-    multicomplex4_coeffs(k, coeffs);
+    multicomplex4 basis = {{0}};
+    multicomplex4 product;
+    int row, col;
     for (row = 0; row < ALGPY_MULTICOMPLEX4_N; row++) {
+        basis.data[row] = 1;
+        product = multicomplex4_mul(k, basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_MULTICOMPLEX4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_MULTICOMPLEX4_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_MULTICOMPLEX4_N + i].data[col];
-            }
-            result[row * ALGPY_MULTICOMPLEX4_N + col] = value;
+            result[row * ALGPY_MULTICOMPLEX4_N + col] = product.data[col];
         }
     }
 }

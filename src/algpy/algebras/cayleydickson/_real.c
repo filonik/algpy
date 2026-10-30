@@ -99,6 +99,13 @@ pyreal_hash(PyObject *self)
     real v = ((PyReal *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_REAL_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (real_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pyreal_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_REAL(real_pow(x, y));
+    return NEW_REAL(real_rpow(x, y));
 }
 
 #define REAL_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pyreal_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pyreal_lpow(PyObject *self, PyObject *other)
+{
+    real b;
+    int r;
+    r = real_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyReal_FromValue(Py_TYPE(self),
+        real_lpow(((PyReal *)self)->v, b));
+}
+
+static PyObject *
+pyreal_rpow(PyObject *self, PyObject *other)
+{
+    real b;
+    int r;
+    r = real_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyReal_FromValue(Py_TYPE(self),
+        real_rpow(((PyReal *)self)->v, b));
+}
+
+static PyObject *
 pyreal_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pyreal_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
     return algpy_from_float(args, kwargs, npy_real, 1);
 }
 
+static PyObject *
+pyreal_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_REAL(real_ipow(((PyReal *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pyreal_methods[] = {
     {"to_float", (PyCFunction)pyreal_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyreal_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pyreal_methods[] = {
     {"to_re", pyreal_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pyreal_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pyreal_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pyreal_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pyreal_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pyreal_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pyreal_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pyreal_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pyreal_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pyreal_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pyreal_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pyreal_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pyreal_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pyreal_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pyreal_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pyreal_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pyreal_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pyreal_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pyreal_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pyreal_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pyreal_square, METH_NOARGS, "square."},
+    {"expm1", pyreal_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pyreal_log1p, METH_NOARGS, "log1p."},
+    {"sin", pyreal_sin, METH_NOARGS, "sin."},
+    {"cos", pyreal_cos, METH_NOARGS, "cos."},
+    {"tan", pyreal_tan, METH_NOARGS, "tan."},
+    {"asin", pyreal_asin, METH_NOARGS, "asin."},
+    {"acos", pyreal_acos, METH_NOARGS, "acos."},
+    {"atan", pyreal_atan, METH_NOARGS, "atan."},
+    {"sinh", pyreal_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pyreal_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pyreal_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pyreal_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pyreal_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pyreal_atanh, METH_NOARGS, "atanh."},
+    {"re", pyreal_re, METH_NOARGS, "re."},
+    {"im", pyreal_im, METH_NOARGS, "im."},
     {"arcsin", pyreal_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pyreal_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pyreal_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pyreal_methods[] = {
     {"basis", pyreal_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pyreal_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pyreal_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pyreal_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pyreal_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pyreal_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pyreal_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pyreal_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pyreal_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pyreal_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pyreal_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pyreal_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pyreal_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pyreal_exp, METH_NOARGS, "exp."},
     {"log", pyreal_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pyreal_spec = {
     .slots = pyreal_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 1; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npyreal_getitem(void *data, void *arr)
 {
     real v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_REAL(v);
 }
 
@@ -670,6 +740,9 @@ npyreal_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pyreal_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 1; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pyreal_nonzero(void *data, void *arr)
 {
     real v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec1_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pyreal_descr_proto = {
     &pyreal_arrfuncs,
 };
 
-#define REAL_CAST_FROM(name, type)                                       \
+#define REAL_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pyreal_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pyreal_descr_proto = {
         real *dst = (real *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = real_from_re((double)src[i]);                      \
+            dst[i] = real_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define REAL_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define REAL_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 REAL_REAL_TYPES(REAL_CAST_FROM)
 
 static int
 pyreal_register_casts(void)
 {
-#define REGISTER_REAL_CAST(name, type)                                   \
+#define REGISTER_REAL_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pyreal_register_ufuncs(PyObject *numpy)
         pyreal_register_loop(numpy, "subtract", loop_real_binary, 3, 0, real_sub) ||
         pyreal_register_loop(numpy, "multiply", loop_real_binary, 3, 0, real_mul) ||
         pyreal_register_loop(numpy, "divide", loop_real_binary, 3, 0, real_div) ||
-        pyreal_register_loop(numpy, "power", loop_real_binary, 3, 0, real_pow) ||
+        pyreal_register_loop(numpy, "power", loop_real_binary, 3, 0, real_rpow) ||
         pyreal_register_loop(numpy, "positive", loop_real_unary, 2, 0, real_pos) ||
         pyreal_register_loop(numpy, "negative", loop_real_unary, 2, 0, real_neg) ||
         pyreal_register_loop(numpy, "conjugate", loop_real_unary, 2, 0, real_conjugate) ||

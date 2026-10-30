@@ -31,7 +31,10 @@ typedef multicomplex1 cayleydickson1;
 #define cayleydickson1_sub multicomplex1_sub
 #define cayleydickson1_equal multicomplex1_equal
 #define cayleydickson1_not_equal multicomplex1_not_equal
-#define cayleydickson1_pow multicomplex1_pow
+#define cayleydickson1_ipow multicomplex1_ipow
+#define cayleydickson1_rpow multicomplex1_rpow
+#define cayleydickson1_pow cayleydickson1_rpow
+#define cayleydickson1_lpow multicomplex1_lpow
 #define cayleydickson1_square multicomplex1_square
 #define cayleydickson1_norm multicomplex1_norm
 #define cayleydickson1_exp multicomplex1_exp
@@ -59,12 +62,13 @@ typedef multicomplex1 cayleydickson1;
 #define cayleydickson1_lmul multicomplex1_lmul
 #define cayleydickson1_rdiv multicomplex1_rdiv
 #define cayleydickson1_ldiv multicomplex1_ldiv
-#define cayleydickson1_rpow multicomplex1_rpow
-#define cayleydickson1_lpow multicomplex1_lpow
+#define cayleydickson1_rpows multicomplex1_rpows
+#define cayleydickson1_lpows multicomplex1_lpows
 #define cayleydickson1_mix multicomplex1_mix
 
 #define cayleydickson1_lmat multicomplex1_lmat
 #define cayleydickson1_rmat multicomplex1_rmat
+#define cayleydickson1_apply multicomplex1_apply
 
 
 #endif /* ALGPY_CAYLEYDICKSON1_H */

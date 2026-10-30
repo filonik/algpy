@@ -111,6 +111,13 @@ pyquaternion_hash(PyObject *self)
     quaternion q = ((PyQuaternion *)self)->q;
     PyObject *tuple;
     Py_hash_t h;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_QUATERNION_N; i++) {
+        if (isnan(q.data[i])) {
+            return 0;
+        }
+    }
     if (q.data[1] == 0 && q.data[2] == 0 && q.data[3] == 0) {
         /* hash(quaternion(w)) == hash(w), like complex */
         PyObject *f = PyFloat_FromDouble(q.data[0]);
@@ -486,6 +493,40 @@ pyquaternion_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pyquaternion_lpow(PyObject *self, PyObject *other)
+{
+    quaternion b;
+    int r;
+    r = quaternion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyQuaternion_FromQuaternion(Py_TYPE(self),
+        quaternion_lpow(((PyQuaternion *)self)->q, b));
+}
+
+static PyObject *
+pyquaternion_rpow(PyObject *self, PyObject *other)
+{
+    quaternion b;
+    int r;
+    r = quaternion_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyQuaternion_FromQuaternion(Py_TYPE(self),
+        quaternion_rpow(((PyQuaternion *)self)->q, b));
+}
+
+static PyObject *
 pyquaternion_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -519,6 +560,16 @@ pyquaternion_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwar
     return algpy_from_float(args, kwargs, npy_quaternion, 4);
 }
 
+static PyObject *
+pyquaternion_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_ipow(((PyQuaternion *)self)->q, (int64_t)exponent));
+}
+
 static PyMethodDef pyquaternion_methods[] = {
     {"to_float", (PyCFunction)pyquaternion_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyquaternion_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -526,25 +577,28 @@ static PyMethodDef pyquaternion_methods[] = {
     {"to_re", pyquaternion_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pyquaternion_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pyquaternion_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"inv", pyquaternion_inv, METH_NOARGS, "inv. See the C header for TODO status."},
-    {"square", pyquaternion_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pyquaternion_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pyquaternion_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sqrt", pyquaternion_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
-    {"sin", pyquaternion_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pyquaternion_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pyquaternion_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pyquaternion_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pyquaternion_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pyquaternion_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pyquaternion_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pyquaternion_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pyquaternion_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pyquaternion_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pyquaternion_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pyquaternion_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pyquaternion_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pyquaternion_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"lpow", pyquaternion_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pyquaternion_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pyquaternion_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
+    {"inv", pyquaternion_inv, METH_NOARGS, "inv."},
+    {"square", pyquaternion_square, METH_NOARGS, "square."},
+    {"expm1", pyquaternion_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pyquaternion_log1p, METH_NOARGS, "log1p."},
+    {"sqrt", pyquaternion_sqrt, METH_NOARGS, "sqrt."},
+    {"sin", pyquaternion_sin, METH_NOARGS, "sin."},
+    {"cos", pyquaternion_cos, METH_NOARGS, "cos."},
+    {"tan", pyquaternion_tan, METH_NOARGS, "tan."},
+    {"asin", pyquaternion_asin, METH_NOARGS, "asin."},
+    {"acos", pyquaternion_acos, METH_NOARGS, "acos."},
+    {"atan", pyquaternion_atan, METH_NOARGS, "atan."},
+    {"sinh", pyquaternion_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pyquaternion_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pyquaternion_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pyquaternion_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pyquaternion_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pyquaternion_atanh, METH_NOARGS, "atanh."},
+    {"re", pyquaternion_re, METH_NOARGS, "re."},
+    {"im", pyquaternion_im, METH_NOARGS, "im."},
     {"arcsin", pyquaternion_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pyquaternion_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pyquaternion_atan, METH_NOARGS, "Alias for atan."},
@@ -561,7 +615,7 @@ static PyMethodDef pyquaternion_methods[] = {
     {"conjugate", pyquaternion_conjugate, METH_NOARGS, "Quaternion conjugate."},
     {"lmat", pyquaternion_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pyquaternion_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pyquaternion_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
+    {"minpoly", pyquaternion_minpoly, METH_NOARGS, "Coefficients of the generic minimal polynomial."},
     {"eivals", pyquaternion_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"exp", pyquaternion_exp, METH_NOARGS, "Quaternion exponential."},
     {"log", pyquaternion_log, METH_NOARGS, "Principal quaternion logarithm."},
@@ -638,7 +692,7 @@ pyquaternion_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return PyQuaternion_FromQuaternion((PyTypeObject *)PyQuaternion_Type, quaternion_pow(x, y));
+    return PyQuaternion_FromQuaternion((PyTypeObject *)PyQuaternion_Type, quaternion_rpow(x, y));
 }
 
 static PyType_Slot pyquaternion_slots[] = {
@@ -678,11 +732,27 @@ static PyType_Spec pyquaternion_spec = {
 
 /* NumPy dtype support */
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npyquaternion_getitem(void *data, void *arr)
 {
     quaternion q;
     memcpy(&q, data, sizeof(q));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&q);
+    }
     return NEW_QUATERNION(q);
 }
 
@@ -717,21 +787,11 @@ npyquaternion_setitem(PyObject *item, void *data, void *arr)
         Py_DECREF(seq);
         q = quaternion_make(v[0], v[1], v[2], v[3]);
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&q);
+    }
     memcpy(data, &q, sizeof(q));
     return 0;
-}
-
-static void
-swap_bytes(char *p)
-{
-    int i, j;
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-            char t = p[8 * i + j];
-            p[8 * i + j] = p[8 * i + 7 - j];
-            p[8 * i + 7 - j] = t;
-        }
-    }
 }
 
 static void
@@ -768,6 +828,9 @@ npyquaternion_nonzero(void *data, void *arr)
 {
     quaternion q;
     memcpy(&q, data, sizeof(q));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&q);
+    }
     return vec4_any_nonzero(q) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -793,7 +856,7 @@ PyArray_DescrProto npyquaternion_descr_proto = {
 
 /* Casts from the builtin real types */
 
-#define QUATERNION_CAST_FROM(name, type)                                   \
+#define QUATERNION_CAST_FROM(name, type, convert)                                   \
     static void                                                            \
     npycast_##name##_to_quaternion(void *from, void *to, npy_intp n,       \
                                    void *fromarr, void *toarr)             \
@@ -802,31 +865,33 @@ PyArray_DescrProto npyquaternion_descr_proto = {
         quaternion *dst = (quaternion *)to;                                \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = quaternion_from_re((double)src[i]);             \
+            dst[i] = quaternion_from_re(convert(src[i]));             \
         }                                                                  \
     }
 
-#define QUATERNION_REAL_TYPES(X)                                           \
-    X(BOOL, npy_bool)                                                      \
-    X(BYTE, npy_byte)                                                      \
-    X(UBYTE, npy_ubyte)                                                    \
-    X(SHORT, npy_short)                                                    \
-    X(USHORT, npy_ushort)                                                  \
-    X(INT, npy_int)                                                        \
-    X(UINT, npy_uint)                                                      \
-    X(LONG, npy_long)                                                      \
-    X(ULONG, npy_ulong)                                                    \
-    X(LONGLONG, npy_longlong)                                              \
-    X(ULONGLONG, npy_ulonglong)                                            \
-    X(FLOAT, npy_float)                                                    \
-    X(DOUBLE, npy_double)
+#define QUATERNION_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 QUATERNION_REAL_TYPES(QUATERNION_CAST_FROM)
 
 static int
 register_casts(int typenum)
 {
-#define REGISTER_CAST(name, type)                                          \
+#define REGISTER_CAST(name, type, convert)                                          \
     {                                                                      \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);           \
         if (from == NULL) {                                                \
@@ -936,7 +1001,7 @@ register_ufuncs(PyObject *numpy)
         register_loop(numpy, "subtract", loop_binary, 3, 0, quaternion_sub) ||
         register_loop(numpy, "multiply", loop_binary, 3, 0, quaternion_mul) ||
         register_loop(numpy, "divide", loop_binary, 3, 0, quaternion_div) ||
-        register_loop(numpy, "power", loop_binary, 3, 0, quaternion_pow) ||
+        register_loop(numpy, "power", loop_binary, 3, 0, quaternion_rpow) ||
         register_loop(numpy, "positive", loop_unary, 2, 0, quaternion_pos) ||
         register_loop(numpy, "negative", loop_unary, 2, 0, quaternion_neg) ||
         register_loop(numpy, "conjugate", loop_unary, 2, 0, quaternion_conjugate) ||

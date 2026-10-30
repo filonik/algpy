@@ -99,6 +99,13 @@ pydual4_hash(PyObject *self)
     dual4 v = ((PyDual4 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_DUAL4_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (dual4_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pydual4_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_DUAL4(dual4_pow(x, y));
+    return NEW_DUAL4(dual4_rpow(x, y));
 }
 
 #define DUAL4_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pydual4_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pydual4_lpow(PyObject *self, PyObject *other)
+{
+    dual4 b;
+    int r;
+    r = dual4_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyDual4_FromValue(Py_TYPE(self),
+        dual4_lpow(((PyDual4 *)self)->v, b));
+}
+
+static PyObject *
+pydual4_rpow(PyObject *self, PyObject *other)
+{
+    dual4 b;
+    int r;
+    r = dual4_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyDual4_FromValue(Py_TYPE(self),
+        dual4_rpow(((PyDual4 *)self)->v, b));
+}
+
+static PyObject *
 pydual4_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pydual4_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
     return algpy_from_float(args, kwargs, npy_dual4, 16);
 }
 
+static PyObject *
+pydual4_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_DUAL4(dual4_ipow(((PyDual4 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pydual4_methods[] = {
     {"to_float", (PyCFunction)pydual4_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pydual4_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pydual4_methods[] = {
     {"to_re", pydual4_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pydual4_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pydual4_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pydual4_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pydual4_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pydual4_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pydual4_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pydual4_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pydual4_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pydual4_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pydual4_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pydual4_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pydual4_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pydual4_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pydual4_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pydual4_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pydual4_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pydual4_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pydual4_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pydual4_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pydual4_square, METH_NOARGS, "square."},
+    {"expm1", pydual4_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pydual4_log1p, METH_NOARGS, "log1p."},
+    {"sin", pydual4_sin, METH_NOARGS, "sin."},
+    {"cos", pydual4_cos, METH_NOARGS, "cos."},
+    {"tan", pydual4_tan, METH_NOARGS, "tan."},
+    {"asin", pydual4_asin, METH_NOARGS, "asin."},
+    {"acos", pydual4_acos, METH_NOARGS, "acos."},
+    {"atan", pydual4_atan, METH_NOARGS, "atan."},
+    {"sinh", pydual4_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pydual4_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pydual4_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pydual4_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pydual4_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pydual4_atanh, METH_NOARGS, "atanh."},
+    {"re", pydual4_re, METH_NOARGS, "re."},
+    {"im", pydual4_im, METH_NOARGS, "im."},
     {"arcsin", pydual4_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pydual4_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pydual4_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pydual4_methods[] = {
     {"basis", pydual4_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pydual4_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pydual4_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pydual4_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pydual4_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pydual4_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pydual4_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pydual4_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pydual4_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pydual4_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pydual4_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pydual4_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pydual4_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pydual4_exp, METH_NOARGS, "exp."},
     {"log", pydual4_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pydual4_spec = {
     .slots = pydual4_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 16; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npydual4_getitem(void *data, void *arr)
 {
     dual4 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_DUAL4(v);
 }
 
@@ -670,6 +740,9 @@ npydual4_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pydual4_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 16; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pydual4_nonzero(void *data, void *arr)
 {
     dual4 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec16_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pydual4_descr_proto = {
     &pydual4_arrfuncs,
 };
 
-#define DUAL4_CAST_FROM(name, type)                                       \
+#define DUAL4_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pydual4_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pydual4_descr_proto = {
         dual4 *dst = (dual4 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = dual4_from_re((double)src[i]);                      \
+            dst[i] = dual4_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define DUAL4_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define DUAL4_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 DUAL4_REAL_TYPES(DUAL4_CAST_FROM)
 
 static int
 pydual4_register_casts(void)
 {
-#define REGISTER_DUAL4_CAST(name, type)                                   \
+#define REGISTER_DUAL4_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pydual4_register_ufuncs(PyObject *numpy)
         pydual4_register_loop(numpy, "subtract", loop_dual4_binary, 3, 0, dual4_sub) ||
         pydual4_register_loop(numpy, "multiply", loop_dual4_binary, 3, 0, dual4_mul) ||
         pydual4_register_loop(numpy, "divide", loop_dual4_binary, 3, 0, dual4_div) ||
-        pydual4_register_loop(numpy, "power", loop_dual4_binary, 3, 0, dual4_pow) ||
+        pydual4_register_loop(numpy, "power", loop_dual4_binary, 3, 0, dual4_rpow) ||
         pydual4_register_loop(numpy, "positive", loop_dual4_unary, 2, 0, dual4_pos) ||
         pydual4_register_loop(numpy, "negative", loop_dual4_unary, 2, 0, dual4_neg) ||
         pydual4_register_loop(numpy, "conjugate", loop_dual4_unary, 2, 0, dual4_conjugate) ||

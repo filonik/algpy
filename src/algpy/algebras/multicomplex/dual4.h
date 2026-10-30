@@ -1,6 +1,7 @@
 #ifndef ALGPY_DUAL4_H
 #define ALGPY_DUAL4_H
 
+#include <stdint.h>
 #include "../../vectorspaces/vec16.h"
 #include "dual3.h"
 
@@ -200,10 +201,57 @@ dual4_log(dual4 a)
 }
 
 /* Real analytic power: requires a positive real part for log(a). */
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline dual4
+dual4_ipow(dual4 a, int64_t b)
+{
+    dual4 result = dual4_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return dual4_mul(a, a);
+    }
+    if (b == -1) {
+        return dual4_inv(a);
+    }
+    if (b < 0) {
+        a = dual4_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = dual4_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = dual4_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline dual4
+dual4_rpow(dual4 a, dual4 b)
+{
+    return dual4_exp(dual4_mul(dual4_log(a), b));
+}
+
 static inline dual4
 dual4_pow(dual4 a, dual4 b)
 {
-    return dual4_exp(dual4_mul(dual4_log(a), b));
+    return dual4_rpow(a, b);
+}
+
+static inline dual4
+dual4_lpow(dual4 a, dual4 b)
+{
+    return dual4_rpow(a, b);
 }
 
 static inline dual4
@@ -345,22 +393,22 @@ dual4_ldiv(dual4 a, double b)
 }
 
 static inline dual4
-dual4_rpow(double a, dual4 b)
+dual4_rpows(double a, dual4 b)
 {
-    return dual4_pow(dual4_from_re(a), b);
+    return dual4_rpow(dual4_from_re(a), b);
 }
 
 static inline dual4
-dual4_lpow(dual4 a, double b)
+dual4_lpows(dual4 a, double b)
 {
-    return dual4_pow(a, dual4_from_re(b));
+    return dual4_rpow(a, dual4_from_re(b));
 }
 
 static inline dual4
 dual4_mix(dual4 a, dual4 b, double t)
 {
     dual4 delta = dual4_mul(dual4_inv(a), b);
-    return dual4_mul(a, dual4_lpow(delta, t));
+    return dual4_mul(a, dual4_lpows(delta, t));
 }
 
 static inline void
@@ -423,21 +471,19 @@ dual4_eivals(dual4 a, complex result[16])
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 dual4_lmat(dual4 a, double result[ALGPY_DUAL4_N*ALGPY_DUAL4_N])
 {
-    dual4 coeffs[ALGPY_DUAL4_N * ALGPY_DUAL4_N];
-    int row, col, i;
-    dual4_coeffs(coeffs);
-    for (row = 0; row < ALGPY_DUAL4_N; row++) {
-        for (col = 0; col < ALGPY_DUAL4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_DUAL4_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_DUAL4_N + col].data[row];
-            }
-            result[row * ALGPY_DUAL4_N + col] = value;
+    dual4 basis = {{0}};
+    dual4 product;
+    int row, col;
+    for (col = 0; col < ALGPY_DUAL4_N; col++) {
+        basis.data[col] = 1;
+        product = dual4_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_DUAL4_N; row++) {
+            result[row * ALGPY_DUAL4_N + col] = product.data[row];
         }
     }
 }
@@ -445,16 +491,15 @@ dual4_lmat(dual4 a, double result[ALGPY_DUAL4_N*ALGPY_DUAL4_N])
 static inline void
 dual4_rmat(dual4 a, double result[ALGPY_DUAL4_N*ALGPY_DUAL4_N])
 {
-    dual4 coeffs[ALGPY_DUAL4_N * ALGPY_DUAL4_N];
-    int row, col, i;
-    dual4_coeffs(coeffs);
+    dual4 basis = {{0}};
+    dual4 product;
+    int row, col;
     for (row = 0; row < ALGPY_DUAL4_N; row++) {
+        basis.data[row] = 1;
+        product = dual4_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_DUAL4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_DUAL4_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_DUAL4_N + i].data[col];
-            }
-            result[row * ALGPY_DUAL4_N + col] = value;
+            result[row * ALGPY_DUAL4_N + col] = product.data[col];
         }
     }
 }

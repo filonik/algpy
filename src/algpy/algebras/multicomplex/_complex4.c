@@ -99,6 +99,13 @@ pycomplex4_hash(PyObject *self)
     complex4 v = ((PyComplex4 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_COMPLEX4_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (complex4_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pycomplex4_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_COMPLEX4(complex4_pow(x, y));
+    return NEW_COMPLEX4(complex4_rpow(x, y));
 }
 
 #define COMPLEX4_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pycomplex4_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pycomplex4_lpow(PyObject *self, PyObject *other)
+{
+    complex4 b;
+    int r;
+    r = complex4_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex4_FromValue(Py_TYPE(self),
+        complex4_lpow(((PyComplex4 *)self)->v, b));
+}
+
+static PyObject *
+pycomplex4_rpow(PyObject *self, PyObject *other)
+{
+    complex4 b;
+    int r;
+    r = complex4_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex4_FromValue(Py_TYPE(self),
+        complex4_rpow(((PyComplex4 *)self)->v, b));
+}
+
+static PyObject *
 pycomplex4_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pycomplex4_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs
     return algpy_from_float(args, kwargs, npy_complex4, 16);
 }
 
+static PyObject *
+pycomplex4_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_COMPLEX4(complex4_ipow(((PyComplex4 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pycomplex4_methods[] = {
     {"to_float", (PyCFunction)pycomplex4_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex4_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pycomplex4_methods[] = {
     {"to_re", pycomplex4_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pycomplex4_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pycomplex4_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pycomplex4_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pycomplex4_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pycomplex4_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pycomplex4_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pycomplex4_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pycomplex4_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pycomplex4_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pycomplex4_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pycomplex4_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pycomplex4_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pycomplex4_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pycomplex4_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pycomplex4_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pycomplex4_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pycomplex4_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pycomplex4_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pycomplex4_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pycomplex4_square, METH_NOARGS, "square."},
+    {"expm1", pycomplex4_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pycomplex4_log1p, METH_NOARGS, "log1p."},
+    {"sin", pycomplex4_sin, METH_NOARGS, "sin."},
+    {"cos", pycomplex4_cos, METH_NOARGS, "cos."},
+    {"tan", pycomplex4_tan, METH_NOARGS, "tan."},
+    {"asin", pycomplex4_asin, METH_NOARGS, "asin."},
+    {"acos", pycomplex4_acos, METH_NOARGS, "acos."},
+    {"atan", pycomplex4_atan, METH_NOARGS, "atan."},
+    {"sinh", pycomplex4_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pycomplex4_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pycomplex4_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pycomplex4_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pycomplex4_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pycomplex4_atanh, METH_NOARGS, "atanh."},
+    {"re", pycomplex4_re, METH_NOARGS, "re."},
+    {"im", pycomplex4_im, METH_NOARGS, "im."},
     {"arcsin", pycomplex4_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pycomplex4_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pycomplex4_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pycomplex4_methods[] = {
     {"basis", pycomplex4_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycomplex4_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycomplex4_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pycomplex4_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pycomplex4_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pycomplex4_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pycomplex4_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pycomplex4_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pycomplex4_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pycomplex4_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pycomplex4_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pycomplex4_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pycomplex4_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pycomplex4_exp, METH_NOARGS, "exp."},
     {"log", pycomplex4_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pycomplex4_spec = {
     .slots = pycomplex4_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 16; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npycomplex4_getitem(void *data, void *arr)
 {
     complex4 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_COMPLEX4(v);
 }
 
@@ -670,6 +740,9 @@ npycomplex4_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pycomplex4_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 16; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pycomplex4_nonzero(void *data, void *arr)
 {
     complex4 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec16_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pycomplex4_descr_proto = {
     &pycomplex4_arrfuncs,
 };
 
-#define COMPLEX4_CAST_FROM(name, type)                                       \
+#define COMPLEX4_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pycomplex4_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pycomplex4_descr_proto = {
         complex4 *dst = (complex4 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = complex4_from_re((double)src[i]);                      \
+            dst[i] = complex4_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define COMPLEX4_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define COMPLEX4_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 COMPLEX4_REAL_TYPES(COMPLEX4_CAST_FROM)
 
 static int
 pycomplex4_register_casts(void)
 {
-#define REGISTER_COMPLEX4_CAST(name, type)                                   \
+#define REGISTER_COMPLEX4_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pycomplex4_register_ufuncs(PyObject *numpy)
         pycomplex4_register_loop(numpy, "subtract", loop_complex4_binary, 3, 0, complex4_sub) ||
         pycomplex4_register_loop(numpy, "multiply", loop_complex4_binary, 3, 0, complex4_mul) ||
         pycomplex4_register_loop(numpy, "divide", loop_complex4_binary, 3, 0, complex4_div) ||
-        pycomplex4_register_loop(numpy, "power", loop_complex4_binary, 3, 0, complex4_pow) ||
+        pycomplex4_register_loop(numpy, "power", loop_complex4_binary, 3, 0, complex4_rpow) ||
         pycomplex4_register_loop(numpy, "positive", loop_complex4_unary, 2, 0, complex4_pos) ||
         pycomplex4_register_loop(numpy, "negative", loop_complex4_unary, 2, 0, complex4_neg) ||
         pycomplex4_register_loop(numpy, "conjugate", loop_complex4_unary, 2, 0, complex4_conjugate) ||

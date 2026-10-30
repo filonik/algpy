@@ -32,7 +32,10 @@ typedef complex complex1;
 #define complex1_ldiv complex_ldiv
 #define complex1_exp complex_exp
 #define complex1_log complex_log
-#define complex1_pow complex_pow
+#define complex1_ipow complex_ipow
+#define complex1_rpow complex_rpow
+#define complex1_pow complex1_rpow
+#define complex1_lpow complex_lpow
 #define complex1_cos complex_cos
 #define complex1_sin complex_sin
 #define complex1_tan complex_tan
@@ -61,8 +64,8 @@ typedef complex complex1;
 #define complex1_atanh complex_atanh
 #define complex1_expm1 complex_expm1
 #define complex1_log1p complex_log1p
-#define complex1_rpow complex_rpow
-#define complex1_lpow complex_lpow
+#define complex1_rpows complex_rpows
+#define complex1_lpows complex_lpows
 #define complex1_mix complex_mix
 
 #define complex1_lmat complex_lmat

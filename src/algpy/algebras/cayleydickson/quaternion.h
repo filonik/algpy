@@ -1,5 +1,5 @@
 /*
- * Core quaternion arithmetic.
+ * Core quaternion arithmetic with fixed generator squares -1.
  *
  * Pure C with no dependency on Python or NumPy, so that it can be reused and
  * tested independently of the wrapper code in `_quaternion.c`.
@@ -7,6 +7,7 @@
 #ifndef ALGPY_QUATERNION_H
 #define ALGPY_QUATERNION_H
 
+#include <stdint.h>
 #include "../../fields/complex.h"
 #include "../../vectorspaces/vec2.h"
 #include "../../vectorspaces/vec4.h"
@@ -16,10 +17,10 @@
 typedef vec4 quaternion;
 
 static inline quaternion
-quaternion_make(double w, double x, double y, double z)
+quaternion_make(double x0, double x1, double x2, double x3)
 {
-    quaternion q = {{w, x, y, z}};
-    return q;
+    quaternion result = {{x0, x1, x2, x3}};
+    return result;
 }
 
 static inline quaternion
@@ -101,7 +102,7 @@ quaternion_coeffs(quaternion result[ALGPY_QUATERNION_N * ALGPY_QUATERNION_N])
 static inline double
 quaternion_norm2(quaternion a)
 {
-    return a.data[0] * a.data[0] + a.data[1] * a.data[1] + a.data[2] * a.data[2] + a.data[3] * a.data[3];
+    return a.data[0]*a.data[0] + a.data[1]*a.data[1] + a.data[2]*a.data[2] + a.data[3]*a.data[3];
 }
 
 static inline double
@@ -113,13 +114,14 @@ quaternion_norm(quaternion a)
 static inline double
 quaternion_vector_norm2(quaternion a)
 {
-    return a.data[1] * a.data[1] + a.data[2] * a.data[2] + a.data[3] * a.data[3];
+    return a.data[1]*a.data[1] + a.data[2]*a.data[2] + a.data[3]*a.data[3];
 }
 
 static inline double
 quaternion_vector_norm(quaternion a)
 {
-    return sqrt(quaternion_vector_norm2(a));
+    double r0 = hypot(a.data[1], a.data[2]);
+    return hypot(r0, a.data[3]);
 }
 
 static inline quaternion
@@ -131,8 +133,7 @@ quaternion_conjugate(quaternion a)
 static inline quaternion
 quaternion_inv(quaternion a)
 {
-    double n = quaternion_norm2(a);
-    return quaternion_make(a.data[0] / n, -a.data[1] / n, -a.data[2] / n, -a.data[3] / n);
+    return vec4_div_scalar(quaternion_conjugate(a), quaternion_norm2(a));
 }
 
 static inline quaternion
@@ -144,41 +145,131 @@ quaternion_div(quaternion a, quaternion b)
     return quaternion_mul(a, quaternion_inv(b));
 }
 
+/* Lift a complex value along the input's imaginary direction. Real inputs
+ * use the first imaginary basis vector to select the principal branch. */
+static inline quaternion
+quaternion_complex_slice(quaternion a, complex value, double radius)
+{
+    quaternion result = {{0}};
+    int i;
+    result.data[0] = value.data[0];
+    if (radius == 0) {
+        result.data[1] = value.data[1];
+        return result;
+    }
+    for (i = 1; i < ALGPY_QUATERNION_N; i++) {
+        result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
+    }
+    return result;
+}
+
+static inline quaternion
+quaternion_apply(quaternion a, complex (*f)(complex))
+{
+    double radius = quaternion_vector_norm(a);
+    complex value = f(complex_make(a.data[0], radius));
+    return quaternion_complex_slice(a, value, radius);
+}
+
 static inline quaternion
 quaternion_exp(quaternion a)
 {
-    double vn = quaternion_vector_norm(a);
-    double ew = exp(a.data[0]);
-    double s;
-    if (vn == 0) {
-        return quaternion_make(ew, 0, 0, 0);
-    }
-    s = ew * sin(vn) / vn;
-    return quaternion_make(ew * cos(vn), s * a.data[1], s * a.data[2],
-                           s * a.data[3]);
+    return quaternion_apply(a, complex_exp);
 }
 
 /* Principal logarithm; for negative reals the pure part points along i. */
 static inline quaternion
 quaternion_log(quaternion a)
 {
-    double vn = quaternion_vector_norm(a);
-    double f;
-    if (vn == 0) {
-        if (a.data[0] < 0) {
-            return quaternion_make(log(-a.data[0]), M_PI, 0, 0);
-        }
-        return quaternion_make(log(a.data[0]), 0, 0, 0);
+    return quaternion_apply(a, complex_log);
+}
+
+static inline quaternion
+quaternion_square(quaternion a)
+{
+    return quaternion_make(
+        a.data[0]*a.data[0] - quaternion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3]);
+}
+
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline quaternion
+quaternion_ipow(quaternion a, int64_t b)
+{
+    quaternion result = quaternion_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
     }
-    f = atan2(vn, a.data[0]) / vn;
-    return quaternion_make(log(sqrt(quaternion_norm2(a))),
-                           f * a.data[1], f * a.data[2], f * a.data[3]);
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return quaternion_mul(a, a);
+    }
+    if (b == -1) {
+        return quaternion_inv(a);
+    }
+    if (b < 0) {
+        a = quaternion_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = quaternion_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = quaternion_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline quaternion
+quaternion_lpows(quaternion a, double b)
+{
+    double radius, real;
+    complex value;
+    if (b == 0) {
+        return quaternion_one();
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return quaternion_square(a);
+    }
+    radius = quaternion_vector_norm(a);
+    if (radius == 0) {
+        real = pow(a.data[0], b);
+        if (!isnan(real)) {
+            return quaternion_from_re(real);
+        }
+    }
+    value = complex_lpows(complex_make(a.data[0], radius), b);
+    return quaternion_complex_slice(a, value, radius);
+}
+
+static inline quaternion
+quaternion_rpow(quaternion a, quaternion b)
+{
+    if (vec4_is_real(b)) {
+        return quaternion_lpows(a, b.data[0]);
+    }
+    return quaternion_exp(quaternion_mul(quaternion_log(a), b));
 }
 
 static inline quaternion
 quaternion_pow(quaternion a, quaternion b)
 {
-    return quaternion_exp(quaternion_mul(quaternion_log(a), b));
+    return quaternion_rpow(a, b);
+}
+
+static inline quaternion
+quaternion_lpow(quaternion a, quaternion b)
+{
+    return quaternion_exp(quaternion_mul(b, quaternion_log(a)));
 }
 
 static inline quaternion
@@ -222,20 +313,15 @@ quaternion_ldiv(quaternion a, double b) {
 }
 
 static inline quaternion
-quaternion_rpow(double a, quaternion b) {
-  return quaternion_pow(quaternion_from_re(a), b);
-}
-
-static inline quaternion
-quaternion_lpow(quaternion a, double b) {
-  return quaternion_pow(a, quaternion_from_re(b));
+quaternion_rpows(double a, quaternion b) {
+  return quaternion_rpow(quaternion_from_re(a), b);
 }
 
 static inline quaternion
 quaternion_mix(quaternion a, quaternion b, double t)
 {
     quaternion delta = quaternion_mul(quaternion_inv(a), b);
-    return quaternion_mul(a, quaternion_lpow(delta, t));
+    return quaternion_mul(a, quaternion_lpows(delta, t));
 }
 
 static inline void
@@ -259,7 +345,7 @@ quaternion_eivals(quaternion a, complex result[2])
     result[1] = complex_make(a.data[0], +vn);
 }
 
-/* Common algebra API. Unfinished operations return NaN components. */
+/* Common algebra API. */
 static inline quaternion
 quaternion_zero(void)
 {
@@ -311,128 +397,109 @@ quaternion_not_equal(quaternion a, quaternion b)
 static inline quaternion
 quaternion_sqrt(quaternion a)
 {
-    /* TODO: implement quaternion_sqrt. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_sqrt);
 }
 
 static inline quaternion
 quaternion_cos(quaternion a)
 {
-    /* TODO: implement quaternion_cos. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_cos);
 }
 
 static inline quaternion
 quaternion_sin(quaternion a)
 {
-    /* TODO: implement quaternion_sin. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_sin);
 }
 
 static inline quaternion
 quaternion_tan(quaternion a)
 {
-    /* TODO: implement quaternion_tan. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_tan);
 }
 
 static inline quaternion
 quaternion_acos(quaternion a)
 {
-    /* TODO: implement quaternion_acos. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_acos);
 }
 
 static inline quaternion
 quaternion_asin(quaternion a)
 {
-    /* TODO: implement quaternion_asin. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_asin);
 }
 
 static inline quaternion
 quaternion_atan(quaternion a)
 {
-    /* TODO: implement quaternion_atan. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_atan);
 }
 
 static inline quaternion
 quaternion_cosh(quaternion a)
 {
-    /* TODO: implement quaternion_cosh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_cosh);
 }
 
 static inline quaternion
 quaternion_sinh(quaternion a)
 {
-    /* TODO: implement quaternion_sinh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_sinh);
 }
 
 static inline quaternion
 quaternion_tanh(quaternion a)
 {
-    /* TODO: implement quaternion_tanh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_tanh);
 }
 
 static inline quaternion
 quaternion_acosh(quaternion a)
 {
-    /* TODO: implement quaternion_acosh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_acosh);
 }
 
 static inline quaternion
 quaternion_asinh(quaternion a)
 {
-    /* TODO: implement quaternion_asinh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_asinh);
 }
 
 static inline quaternion
 quaternion_atanh(quaternion a)
 {
-    /* TODO: implement quaternion_atanh. */
-    return quaternion_make(NAN, NAN, NAN, NAN);
+    return quaternion_apply(a, complex_atanh);
 }
 
-static inline quaternion
-quaternion_square(quaternion a)
-{
-    return quaternion_mul(a, a);
-}
+
 
 static inline quaternion
 quaternion_expm1(quaternion a)
 {
-    return quaternion_lsub(quaternion_exp(a), 1);
+    return quaternion_apply(a, complex_expm1);
 }
 
 static inline quaternion
 quaternion_log1p(quaternion a)
 {
-    return quaternion_log(quaternion_ladd(a, 1));
+    return quaternion_apply(a, complex_log1p);
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 quaternion_lmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_N])
 {
-    quaternion coeffs[ALGPY_QUATERNION_N * ALGPY_QUATERNION_N];
-    int row, col, i;
-    quaternion_coeffs(coeffs);
-    for (row = 0; row < ALGPY_QUATERNION_N; row++) {
-        for (col = 0; col < ALGPY_QUATERNION_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_QUATERNION_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_QUATERNION_N + col].data[row];
-            }
-            result[row * ALGPY_QUATERNION_N + col] = value;
+    quaternion basis = {{0}};
+    quaternion product;
+    int row, col;
+    for (col = 0; col < ALGPY_QUATERNION_N; col++) {
+        basis.data[col] = 1;
+        product = quaternion_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_QUATERNION_N; row++) {
+            result[row * ALGPY_QUATERNION_N + col] = product.data[row];
         }
     }
 }
@@ -440,16 +507,15 @@ quaternion_lmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_
 static inline void
 quaternion_rmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_N])
 {
-    quaternion coeffs[ALGPY_QUATERNION_N * ALGPY_QUATERNION_N];
-    int row, col, i;
-    quaternion_coeffs(coeffs);
+    quaternion basis = {{0}};
+    quaternion product;
+    int row, col;
     for (row = 0; row < ALGPY_QUATERNION_N; row++) {
+        basis.data[row] = 1;
+        product = quaternion_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_QUATERNION_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_QUATERNION_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_QUATERNION_N + i].data[col];
-            }
-            result[row * ALGPY_QUATERNION_N + col] = value;
+            result[row * ALGPY_QUATERNION_N + col] = product.data[col];
         }
     }
 }

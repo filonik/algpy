@@ -2,7 +2,27 @@
 #define ALGPY_CONVERSIONS_H
 
 #include <Python.h>
+#include <math.h>
 #include <numpy/arrayobject.h>
+
+/* IEEE binary16 to the native double coefficient type, without a dependency
+ * on NumPy's separately linked half-precision conversion routines. */
+static inline double
+algpy_half_to_double(npy_half value)
+{
+    unsigned int sign = value >> 15;
+    unsigned int exponent = (value >> 10) & 31;
+    unsigned int mantissa = value & 1023;
+    double result;
+    if (exponent == 31) {
+        result = mantissa == 0 ? INFINITY : NAN;
+    } else if (exponent == 0) {
+        result = ldexp((double)mantissa, -24);
+    } else {
+        result = ldexp((double)(1024 + mantissa), (int)exponent - 25);
+    }
+    return sign ? -result : result;
+}
 
 /* Wrapper helpers. Each extension imports its own NumPy C API before these
  * functions are called. Algebra storage is N consecutive native doubles. */

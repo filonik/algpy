@@ -99,6 +99,13 @@ pysplitcomplex3_hash(PyObject *self)
     splitcomplex3 v = ((PySplitcomplex3 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_SPLITCOMPLEX3_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (splitcomplex3_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pysplitcomplex3_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_SPLITCOMPLEX3(splitcomplex3_pow(x, y));
+    return NEW_SPLITCOMPLEX3(splitcomplex3_rpow(x, y));
 }
 
 #define SPLITCOMPLEX3_UNARY(name, expr)                                           \
@@ -469,6 +476,40 @@ pysplitcomplex3_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pysplitcomplex3_lpow(PyObject *self, PyObject *other)
+{
+    splitcomplex3 b;
+    int r;
+    r = splitcomplex3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PySplitcomplex3_FromValue(Py_TYPE(self),
+        splitcomplex3_lpow(((PySplitcomplex3 *)self)->v, b));
+}
+
+static PyObject *
+pysplitcomplex3_rpow(PyObject *self, PyObject *other)
+{
+    splitcomplex3 b;
+    int r;
+    r = splitcomplex3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PySplitcomplex3_FromValue(Py_TYPE(self),
+        splitcomplex3_rpow(((PySplitcomplex3 *)self)->v, b));
+}
+
+static PyObject *
 pysplitcomplex3_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -502,6 +543,16 @@ pysplitcomplex3_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *k
     return algpy_from_float(args, kwargs, npy_splitcomplex3, 8);
 }
 
+static PyObject *
+pysplitcomplex3_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_SPLITCOMPLEX3(splitcomplex3_ipow(((PySplitcomplex3 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pysplitcomplex3_methods[] = {
     {"to_float", (PyCFunction)pysplitcomplex3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysplitcomplex3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -509,23 +560,23 @@ static PyMethodDef pysplitcomplex3_methods[] = {
     {"to_re", pysplitcomplex3_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pysplitcomplex3_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pysplitcomplex3_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pysplitcomplex3_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pysplitcomplex3_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pysplitcomplex3_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pysplitcomplex3_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pysplitcomplex3_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pysplitcomplex3_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pysplitcomplex3_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pysplitcomplex3_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pysplitcomplex3_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pysplitcomplex3_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pysplitcomplex3_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pysplitcomplex3_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pysplitcomplex3_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pysplitcomplex3_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pysplitcomplex3_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pysplitcomplex3_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pysplitcomplex3_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pysplitcomplex3_square, METH_NOARGS, "square."},
+    {"expm1", pysplitcomplex3_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pysplitcomplex3_log1p, METH_NOARGS, "log1p."},
+    {"sin", pysplitcomplex3_sin, METH_NOARGS, "sin."},
+    {"cos", pysplitcomplex3_cos, METH_NOARGS, "cos."},
+    {"tan", pysplitcomplex3_tan, METH_NOARGS, "tan."},
+    {"asin", pysplitcomplex3_asin, METH_NOARGS, "asin."},
+    {"acos", pysplitcomplex3_acos, METH_NOARGS, "acos."},
+    {"atan", pysplitcomplex3_atan, METH_NOARGS, "atan."},
+    {"sinh", pysplitcomplex3_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pysplitcomplex3_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pysplitcomplex3_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pysplitcomplex3_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pysplitcomplex3_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pysplitcomplex3_atanh, METH_NOARGS, "atanh."},
+    {"re", pysplitcomplex3_re, METH_NOARGS, "re."},
+    {"im", pysplitcomplex3_im, METH_NOARGS, "im."},
     {"arcsin", pysplitcomplex3_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pysplitcomplex3_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pysplitcomplex3_atan, METH_NOARGS, "Alias for atan."},
@@ -538,11 +589,14 @@ static PyMethodDef pysplitcomplex3_methods[] = {
     {"basis", pysplitcomplex3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pysplitcomplex3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pysplitcomplex3_norm, METH_NOARGS, "Norm as a Python complex."},
+    {"lpow", pysplitcomplex3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pysplitcomplex3_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pysplitcomplex3_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pysplitcomplex3_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pysplitcomplex3_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pysplitcomplex3_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pysplitcomplex3_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pysplitcomplex3_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pysplitcomplex3_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pysplitcomplex3_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pysplitcomplex3_exp, METH_NOARGS, "exp."},
     {"log", pysplitcomplex3_log, METH_NOARGS, "log."},
@@ -636,11 +690,27 @@ static PyType_Spec pysplitcomplex3_spec = {
     .slots = pysplitcomplex3_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npysplitcomplex3_getitem(void *data, void *arr)
 {
     splitcomplex3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_SPLITCOMPLEX3(v);
 }
 
@@ -671,6 +741,9 @@ npysplitcomplex3_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -688,17 +761,7 @@ pysplitcomplex3_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 8; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -715,6 +778,9 @@ pysplitcomplex3_nonzero(void *data, void *arr)
 {
     splitcomplex3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec8_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -728,7 +794,7 @@ static PyArray_DescrProto pysplitcomplex3_descr_proto = {
     &pysplitcomplex3_arrfuncs,
 };
 
-#define SPLITCOMPLEX3_CAST_FROM(name, type)                                       \
+#define SPLITCOMPLEX3_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pysplitcomplex3_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -737,23 +803,33 @@ static PyArray_DescrProto pysplitcomplex3_descr_proto = {
         splitcomplex3 *dst = (splitcomplex3 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = splitcomplex3_from_re((double)src[i]);                      \
+            dst[i] = splitcomplex3_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define SPLITCOMPLEX3_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define SPLITCOMPLEX3_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 SPLITCOMPLEX3_REAL_TYPES(SPLITCOMPLEX3_CAST_FROM)
 
 static int
 pysplitcomplex3_register_casts(void)
 {
-#define REGISTER_SPLITCOMPLEX3_CAST(name, type)                                   \
+#define REGISTER_SPLITCOMPLEX3_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -860,7 +936,7 @@ pysplitcomplex3_register_ufuncs(PyObject *numpy)
         pysplitcomplex3_register_loop(numpy, "subtract", loop_splitcomplex3_binary, 3, 0, splitcomplex3_sub) ||
         pysplitcomplex3_register_loop(numpy, "multiply", loop_splitcomplex3_binary, 3, 0, splitcomplex3_mul) ||
         pysplitcomplex3_register_loop(numpy, "divide", loop_splitcomplex3_binary, 3, 0, splitcomplex3_div) ||
-        pysplitcomplex3_register_loop(numpy, "power", loop_splitcomplex3_binary, 3, 0, splitcomplex3_pow) ||
+        pysplitcomplex3_register_loop(numpy, "power", loop_splitcomplex3_binary, 3, 0, splitcomplex3_rpow) ||
         pysplitcomplex3_register_loop(numpy, "positive", loop_splitcomplex3_unary, 2, 0, splitcomplex3_pos) ||
         pysplitcomplex3_register_loop(numpy, "negative", loop_splitcomplex3_unary, 2, 0, splitcomplex3_neg) ||
         pysplitcomplex3_register_loop(numpy, "conjugate", loop_splitcomplex3_unary, 2, 0, splitcomplex3_conjugate) ||

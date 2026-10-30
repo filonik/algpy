@@ -6,6 +6,7 @@
 #ifndef ALGPY_COMPLEX_H
 #define ALGPY_COMPLEX_H
 
+#include <stdint.h>
 #include <math.h>
 #include <complex.h>
 #include <string.h>
@@ -117,14 +118,44 @@ complex_norm2(complex a)
 static inline complex
 complex_inv(complex a)
 {
-    double n = complex_norm2(a);
-    return complex_make(a.data[0] / n, -a.data[1] / n);
+    double x = a.data[0], y = a.data[1];
+    /* Normalize by the larger component, keeping the squared ratio <= 1.
+     * Divide by that component last so intermediate reciprocals stay finite. */
+    if (fabs(x) >= fabs(y)) {
+        double ratio = y/x;
+        double scale = (1/(1 + ratio*ratio))/x;
+        return complex_make(scale, -ratio*scale);
+    }
+    double ratio = x/y;
+    double scale = (1/(1 + ratio*ratio))/y;
+    return complex_make(ratio*scale, -scale);
 }
 
 static inline complex
 complex_div(complex a, complex b)
 {
-    return complex_mul(a, complex_inv(b));
+    double ar = a.data[0], ai = a.data[1], br = b.data[0], bi = b.data[1];
+    double amax = fmax(fabs(ar), fabs(ai)), bmax = fmax(fabs(br), fabs(bi));
+    double denominator;
+    int ae = 0, be = 0;
+    if (bi == 0 && br != 0) {
+        return complex_make(ar/br, ai/br);
+    }
+    if (br == 0 && bi != 0) {
+        return complex_make(ai/bi, -ar/bi);
+    }
+    if (!isfinite(amax) || !isfinite(bmax) || bmax == 0) {
+        return complex_mul(a, complex_inv(b));
+    }
+    /* Scale both operands by exact powers of two before forming products.
+     * This also covers subnormal divisors whose inverse is unrepresentable. */
+    frexp(amax, &ae);
+    frexp(bmax, &be);
+    ar = scalbn(ar, -ae); ai = scalbn(ai, -ae);
+    br = scalbn(br, -be); bi = scalbn(bi, -be);
+    denominator = br*br + bi*bi;
+    return complex_make(scalbn((ar*br + ai*bi)/denominator, ae - be),
+                        scalbn((ai*br - ar*bi)/denominator, ae - be));
 }
 
 static inline complex
@@ -142,10 +173,57 @@ complex_log(complex a)
                          atan2(a.data[1], a.data[0]));
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline complex
+complex_ipow(complex a, int64_t b)
+{
+    complex result = complex_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return complex_mul(a, a);
+    }
+    if (b == -1) {
+        return complex_inv(a);
+    }
+    if (b < 0) {
+        a = complex_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = complex_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = complex_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline complex
+complex_rpow(complex a, complex b)
+{
+    return complex_exp(complex_mul(complex_log(a), b));
+}
+
 static inline complex
 complex_pow(complex a, complex b)
 {
-    return complex_exp(complex_mul(complex_log(a), b));
+    return complex_rpow(a, b);
+}
+
+static inline complex
+complex_lpow(complex a, complex b)
+{
+    return complex_rpow(a, b);
 }
 
 static inline complex
@@ -189,41 +267,49 @@ complex_ldiv(complex a, double b) {
 }
 
 static inline complex
-complex_rpow(double a, complex b) {
-  return complex_pow(complex_from_re(a), b);
+complex_rpows(double a, complex b) {
+  return complex_rpow(complex_from_re(a), b);
 }
 
 static inline complex
-complex_lpow(complex a, double b) {
-  return complex_pow(a, complex_from_re(b));
+complex_lpows(complex a, double b) {
+  return complex_rpow(a, complex_from_re(b));
 }
 
 static inline complex
 complex_mix(complex a, complex b, double t)
 {
     complex delta = complex_mul(complex_inv(a), b);
-    return complex_mul(a, complex_lpow(delta, t));
+    return complex_mul(a, complex_lpows(delta, t));
 }
 
 static inline complex
 complex_expm1(complex a)
 {
-    return complex_lsub(complex_exp(a), 1);
+    double half_sin = sin(0.5*a.data[1]);
+    return complex_make(expm1(a.data[0])*cos(a.data[1]) - 2*half_sin*half_sin,
+                        exp(a.data[0])*sin(a.data[1]));
 }
 
 static inline complex
 complex_log1p(complex a)
 {
+    if (fabs(a.data[0]) < 0.5 && fabs(a.data[1]) < 0.5) {
+        double real = a.data[1] == 0 ? log1p(a.data[0]) :
+            0.5*log1p(a.data[0]*(2 + a.data[0]) + a.data[1]*a.data[1]);
+        return complex_make(real, atan2(a.data[1], 1 + a.data[0]));
+    }
     return complex_log(complex_ladd(a, 1));
 }
 
 static inline complex
 complex_sqrt(complex a)
 {
-    double r = hypot(a.data[0], a.data[1]);
-    double re = sqrt(fmax(0, (r + a.data[0]) / 2));
-    double im = sqrt(fmax(0, (r - a.data[0]) / 2));
-    return complex_make(re, copysign(im, a.data[1]));
+    algpy_native_complex z;
+    /* The native implementation avoids cancellation near the real axis. */
+    memcpy(&z, a.data, sizeof(z));
+    z = csqrt(z);
+    return complex_make(creal(z), cimag(z));
 }
 
 static inline complex
@@ -243,7 +329,11 @@ complex_sin(complex a)
 static inline complex
 complex_tan(complex a)
 {
-    return complex_div(complex_sin(a), complex_cos(a));
+    algpy_native_complex z;
+    /* Native reduction avoids overflowing sin/cos for large imaginary parts. */
+    memcpy(&z, a.data, sizeof(z));
+    z = ctan(z);
+    return complex_make(creal(z), cimag(z));
 }
 
 static inline complex
@@ -292,7 +382,11 @@ complex_sinh(complex a)
 static inline complex
 complex_tanh(complex a)
 {
-    return complex_div(complex_sinh(a), complex_cosh(a));
+    algpy_native_complex z;
+    /* The bounded result remains finite when sinh/cosh would overflow. */
+    memcpy(&z, a.data, sizeof(z));
+    z = ctanh(z);
+    return complex_make(creal(z), cimag(z));
 }
 
 static inline complex
@@ -946,21 +1040,19 @@ complex_atanh_deriv4(complex a)
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 complex_lmat(complex a, double result[ALGPY_COMPLEX_N*ALGPY_COMPLEX_N])
 {
-    complex coeffs[ALGPY_COMPLEX_N * ALGPY_COMPLEX_N];
-    int row, col, i;
-    complex_coeffs(coeffs);
-    for (row = 0; row < ALGPY_COMPLEX_N; row++) {
-        for (col = 0; col < ALGPY_COMPLEX_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_COMPLEX_N + col].data[row];
-            }
-            result[row * ALGPY_COMPLEX_N + col] = value;
+    complex basis = {{0}};
+    complex product;
+    int row, col;
+    for (col = 0; col < ALGPY_COMPLEX_N; col++) {
+        basis.data[col] = 1;
+        product = complex_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_COMPLEX_N; row++) {
+            result[row * ALGPY_COMPLEX_N + col] = product.data[row];
         }
     }
 }
@@ -968,16 +1060,15 @@ complex_lmat(complex a, double result[ALGPY_COMPLEX_N*ALGPY_COMPLEX_N])
 static inline void
 complex_rmat(complex a, double result[ALGPY_COMPLEX_N*ALGPY_COMPLEX_N])
 {
-    complex coeffs[ALGPY_COMPLEX_N * ALGPY_COMPLEX_N];
-    int row, col, i;
-    complex_coeffs(coeffs);
+    complex basis = {{0}};
+    complex product;
+    int row, col;
     for (row = 0; row < ALGPY_COMPLEX_N; row++) {
+        basis.data[row] = 1;
+        product = complex_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_COMPLEX_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_COMPLEX_N + i].data[col];
-            }
-            result[row * ALGPY_COMPLEX_N + col] = value;
+            result[row * ALGPY_COMPLEX_N + col] = product.data[col];
         }
     }
 }

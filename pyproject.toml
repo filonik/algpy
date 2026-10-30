@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "numpy-algebras"
-version = "0.3.0"
+version = "0.4.0"
 description = "Custom number types for numpy."
 requires-python = ">=3.10"
 dependencies = ["numpy"]
 
 [project.optional-dependencies]
 test = ["pytest", "scipy"]
+benchmark = ["scipy", "threadpoolctl"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

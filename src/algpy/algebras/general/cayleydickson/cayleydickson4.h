@@ -8,9 +8,12 @@
 
 #define ALGPY_CAYLEYDICKSON4_N 16
 
+#include <stdint.h>
 #include <math.h>
 
 #include "../../../fields/complex.h"
+#include "../../../fields/double.h"
+#include "../../cayleydickson/sedenion.h"
 #include "cayleydickson3.h"
 #include "../../../vectorspaces/vec4.h"
 #include "../../../vectorspaces/vec16.h"
@@ -66,6 +69,9 @@ cayleydickson4_one(void)
 static inline cayleydickson4
 cayleydickson4_mul(vec4 k, cayleydickson4 a, cayleydickson4 b)
 {
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
+        return sedenion_mul(a, b);
+    }
     vec3 k012 = {{k.data[0], k.data[1], k.data[2]}};
     cayleydickson3 x0 = {{a.data[0], a.data[1], a.data[2], a.data[3],
                           a.data[4], a.data[5], a.data[6], a.data[7]}};
@@ -99,28 +105,30 @@ cayleydickson4_conjugate(cayleydickson4 a)
 static inline double
 cayleydickson4_norm2(vec4 k, cayleydickson4 a)
 {
-    double result = 0;
-    int i, p, bits;
-    for (i = 0; i < ALGPY_CAYLEYDICKSON4_N; i++) {
-        double factor = 1;
-        bits = 0;
-        for (p = 0; p < 4; p++) {
-            if (i & (1 << p)) {
-                factor *= k.data[p];
-                bits++;
-            }
-        }
-        if (bits & 1) {
-            factor = -factor;
-        }
-        result += factor * a.data[i] * a.data[i];
-    }
-    return result;
+    return a.data[0]*a.data[0]
+        - k.data[0]*a.data[1]*a.data[1]
+        - k.data[1]*a.data[2]*a.data[2]
+        + k.data[0]*k.data[1]*a.data[3]*a.data[3]
+        - k.data[2]*a.data[4]*a.data[4]
+        + k.data[0]*k.data[2]*a.data[5]*a.data[5]
+        + k.data[1]*k.data[2]*a.data[6]*a.data[6]
+        - k.data[0]*k.data[1]*k.data[2]*a.data[7]*a.data[7]
+        - k.data[3]*a.data[8]*a.data[8]
+        + k.data[0]*k.data[3]*a.data[9]*a.data[9]
+        + k.data[1]*k.data[3]*a.data[10]*a.data[10]
+        - k.data[0]*k.data[1]*k.data[3]*a.data[11]*a.data[11]
+        + k.data[2]*k.data[3]*a.data[12]*a.data[12]
+        - k.data[0]*k.data[2]*k.data[3]*a.data[13]*a.data[13]
+        - k.data[1]*k.data[2]*k.data[3]*a.data[14]*a.data[14]
+        + k.data[0]*k.data[1]*k.data[2]*k.data[3]*a.data[15]*a.data[15];
 }
 
 static inline cayleydickson4
 cayleydickson4_inv(vec4 k, cayleydickson4 a)
 {
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
+        return sedenion_inv(a);
+    }
     return vec16_div_scalar(cayleydickson4_conjugate(a),
                             cayleydickson4_norm2(k, a));
 }
@@ -175,7 +183,7 @@ cayleydickson4_eivals(vec4 k, cayleydickson4 a, complex result[2])
     result[1] = complex_make(a.data[0] + s.data[0], +s.data[1]);
 }
 
-/* Common algebra API. Unfinished operations return NaN components. */
+/* Common algebra API. */
 static inline cayleydickson4
 cayleydickson4_zero(void)
 {
@@ -224,122 +232,358 @@ cayleydickson4_not_equal(cayleydickson4 a, cayleydickson4 b)
     return !cayleydickson4_equal(a, b);
 }
 
+/* Every element satisfies a^2 - 2*re(a)*a + norm2(a) = 0.
+ * For a = w + v this gives v^2 = q: complex if q < 0, split if q > 0,
+ * and f(a) = f(w) + f'(w)*v if q == 0. */
+static inline cayleydickson4
+cayleydickson4_slice(cayleydickson4 a, double real, double scale)
+{
+    cayleydickson4 result;
+    int i;
+    result.data[0] = real;
+    for (i = 1; i < ALGPY_CAYLEYDICKSON4_N; i++) {
+        result.data[i] = a.data[i] == 0 ? 0 : scale*a.data[i];
+    }
+    return result;
+}
+
+static inline cayleydickson4
+cayleydickson4_real_slice(vec4 k, complex value)
+{
+    cayleydickson4 result = cayleydickson4_from_re(value.data[0]);
+    int i, p;
+    if (value.data[1] == 0) {
+        return result;
+    }
+    for (i = 1; i < ALGPY_CAYLEYDICKSON4_N; i++) {
+        double square = -1;
+        for (p = 0; p < 4; p++) {
+            if (i & (1 << p)) {
+                square *= -k.data[p];
+            }
+        }
+        if (square < 0) {
+            result.data[i] = value.data[1]/sqrt(-square);
+            return result;
+        }
+    }
+    return cayleydickson4_make(
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN);
+}
+
+static inline cayleydickson4
+cayleydickson4_apply(vec4 k, cayleydickson4 a,
+    double (*f)(double), double (*deriv1)(double), complex (*cf)(complex))
+{
+    double w = a.data[0], q, radius, plus, minus;
+    int i;
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
+        return sedenion_apply(a, cf);
+    }
+    if (vec16_is_real(a)) {
+        return cayleydickson4_real_slice(k, cf(complex_make(w, 0)));
+    }
+    q = -cayleydickson4_norm2(k, cayleydickson4_im(a));
+    if (q < 0) {
+        complex value;
+        cayleydickson4 result;
+        radius = sqrt(-q);
+        value = cf(complex_make(w, radius));
+        result.data[0] = value.data[0];
+        for (i = 1; i < ALGPY_CAYLEYDICKSON4_N; i++) {
+            result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
+        }
+        return result;
+    }
+    if (q > 0) {
+        radius = sqrt(q);
+        plus = f(w + radius);
+        minus = f(w - radius);
+        if (isnan(plus) || isnan(minus)) {
+            return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        }
+        /* Native real functions have a smooth derivative limit when the
+         * roots nearly coincide. Respect their nearest branch point or pole. */
+        double distance = 1;
+        if (f == double_log || f == double_sqrt) {
+            distance = fabs(w);
+        } else if (f == double_log1p) {
+            distance = fabs(1 + w);
+        } else if (f == double_asin || f == double_acos ||
+                   f == double_acosh || f == double_atanh) {
+            distance = fmin(fabs(1 - w), fabs(1 + w));
+        } else if (f == double_atan || f == double_asinh) {
+            distance = hypot(1, w);
+        } else if (f == double_tan) {
+            distance = fabs(remainder(w - M_PI/2, M_PI));
+        }
+        if (radius < 1e-8*distance &&
+            (f == double_exp ||
+             f == double_log ||
+             f == double_sqrt ||
+             f == double_cos ||
+             f == double_sin ||
+             f == double_tan ||
+             f == double_acos ||
+             f == double_asin ||
+             f == double_atan ||
+             f == double_cosh ||
+             f == double_sinh ||
+             f == double_tanh ||
+             f == double_acosh ||
+             f == double_asinh ||
+             f == double_atanh ||
+             f == double_expm1 ||
+             f == double_log1p)) {
+            double real = f(w), scale = deriv1(w);
+            if (isfinite(real) && isfinite(scale)) {
+                return cayleydickson4_slice(a, real, scale);
+            }
+        }
+        if (w + radius != w - radius) {
+            return cayleydickson4_slice(a, 0.5*plus + 0.5*minus, (0.5*plus - 0.5*minus)/radius);
+        }
+    }
+    if (q == 0 || q > 0) {
+        double real = f(w), scale = deriv1(w);
+        if (isfinite(real) && isfinite(scale)) {
+            return cayleydickson4_slice(a, real, scale);
+        }
+    }
+    return cayleydickson4_make(
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN);
+}
+
 static inline cayleydickson4
 cayleydickson4_exp(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_exp. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_exp, double_exp_deriv1, complex_exp);
 }
 
 static inline cayleydickson4
 cayleydickson4_log(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_log. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_log, double_log_deriv1, complex_log);
 }
 
 static inline cayleydickson4
 cayleydickson4_sqrt(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_sqrt. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_sqrt, double_sqrt_deriv1, complex_sqrt);
 }
 
 static inline cayleydickson4
 cayleydickson4_cos(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_cos. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_cos, double_cos_deriv1, complex_cos);
 }
 
 static inline cayleydickson4
 cayleydickson4_sin(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_sin. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_sin, double_sin_deriv1, complex_sin);
 }
 
 static inline cayleydickson4
 cayleydickson4_tan(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_tan. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_tan, double_tan_deriv1, complex_tan);
 }
 
 static inline cayleydickson4
 cayleydickson4_acos(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_acos. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_acos, double_acos_deriv1, complex_acos);
 }
 
 static inline cayleydickson4
 cayleydickson4_asin(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_asin. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_asin, double_asin_deriv1, complex_asin);
 }
 
 static inline cayleydickson4
 cayleydickson4_atan(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_atan. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_atan, double_atan_deriv1, complex_atan);
 }
 
 static inline cayleydickson4
 cayleydickson4_cosh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_cosh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_cosh, double_cosh_deriv1, complex_cosh);
 }
 
 static inline cayleydickson4
 cayleydickson4_sinh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_sinh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_sinh, double_sinh_deriv1, complex_sinh);
 }
 
 static inline cayleydickson4
 cayleydickson4_tanh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_tanh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_tanh, double_tanh_deriv1, complex_tanh);
 }
 
 static inline cayleydickson4
 cayleydickson4_acosh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_acosh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_acosh, double_acosh_deriv1, complex_acosh);
 }
 
 static inline cayleydickson4
 cayleydickson4_asinh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_asinh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson4_apply(k, a, double_asinh, double_asinh_deriv1, complex_asinh);
 }
 
 static inline cayleydickson4
 cayleydickson4_atanh(vec4 k, cayleydickson4 a)
 {
-    /* TODO: implement cayleydickson4_atanh. */
-    return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
-}
-
-static inline cayleydickson4
-cayleydickson4_pow(vec4 k, cayleydickson4 a, cayleydickson4 b)
-{
-    return cayleydickson4_exp(k, cayleydickson4_mul(k, cayleydickson4_log(k, a), b));
+    return cayleydickson4_apply(k, a, double_atanh, double_atanh_deriv1, complex_atanh);
 }
 
 static inline cayleydickson4
 cayleydickson4_square(vec4 k, cayleydickson4 a)
 {
-    return cayleydickson4_mul(k, a, a);
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
+        return sedenion_square(a);
+    }
+    return cayleydickson4_slice(a, a.data[0]*a.data[0] - cayleydickson4_norm2(k, cayleydickson4_im(a)), 2*a.data[0]);
 }
+
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline cayleydickson4
+cayleydickson4_ipow(vec4 k, cayleydickson4 a, int64_t b)
+{
+    cayleydickson4 result = cayleydickson4_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return cayleydickson4_mul(k, a, a);
+    }
+    if (b == -1) {
+        return cayleydickson4_inv(k, a);
+    }
+    if (b < 0) {
+        a = cayleydickson4_inv(k, a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = cayleydickson4_mul(k, result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = cayleydickson4_mul(k, a, a);
+        }
+    }
+    return result;
+}
+
+static inline cayleydickson4
+cayleydickson4_lpows(vec4 k, cayleydickson4 a, double b)
+{
+    double w = a.data[0], q, radius, plus, minus, real, scale;
+    int i;
+    if (k.data[0] == -1 && k.data[1] == -1 && k.data[2] == -1 && k.data[3] == -1) {
+        return sedenion_lpows(a, b);
+    }
+    if (b == 0) {
+        return cayleydickson4_one();
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return cayleydickson4_square(k, a);
+    }
+    if (vec16_is_real(a)) {
+        real = pow(w, b);
+        if (!isnan(real)) {
+            return cayleydickson4_from_re(real);
+        }
+        return cayleydickson4_real_slice(k, complex_lpows(complex_make(w, 0), b));
+    }
+    q = -cayleydickson4_norm2(k, cayleydickson4_im(a));
+    if (q < 0) {
+        complex value;
+        cayleydickson4 result;
+        radius = sqrt(-q);
+        value = complex_lpows(complex_make(w, radius), b);
+        result.data[0] = value.data[0];
+        for (i = 1; i < ALGPY_CAYLEYDICKSON4_N; i++) {
+            result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
+        }
+        return result;
+    }
+    if (q > 0) {
+        radius = sqrt(q);
+        plus = pow(w + radius, b);
+        minus = pow(w - radius, b);
+        if (isnan(plus) || isnan(minus)) {
+            return cayleydickson4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        }
+        if (radius < 1e-8*fabs(w)/fmax(1, fabs(b))) {
+            real = pow(w, b);
+            scale = b*pow(w, b - 1);
+            if (isfinite(real) && isfinite(scale)) {
+                return cayleydickson4_slice(a, real, scale);
+            }
+        }
+        if (w + radius != w - radius) {
+            return cayleydickson4_slice(a, 0.5*plus + 0.5*minus, (0.5*plus - 0.5*minus)/radius);
+        }
+    }
+    if (q == 0 || q > 0) {
+        real = pow(w, b);
+        scale = b*pow(w, b - 1);
+        if (isfinite(real) && isfinite(scale)) {
+            return cayleydickson4_slice(a, real, scale);
+        }
+    }
+    return cayleydickson4_make(
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN,
+        NAN, NAN, NAN, NAN);
+}
+
+static inline cayleydickson4
+cayleydickson4_rpow(vec4 k, cayleydickson4 a, cayleydickson4 b)
+{
+    if (vec16_is_real(b)) {
+        return cayleydickson4_lpows(k, a, b.data[0]);
+    }
+    return cayleydickson4_exp(k, cayleydickson4_mul(k, cayleydickson4_log(k, a), b));
+}
+
+static inline cayleydickson4
+cayleydickson4_pow(vec4 k, cayleydickson4 a, cayleydickson4 b)
+{
+    return cayleydickson4_rpow(k, a, b);
+}
+
+static inline cayleydickson4
+cayleydickson4_lpow(vec4 k, cayleydickson4 a, cayleydickson4 b)
+{
+    return cayleydickson4_exp(k, cayleydickson4_mul(k, b, cayleydickson4_log(k, a)));
+}
+
+
 
 static inline cayleydickson4
 cayleydickson4_radd(double a, cayleydickson4 b)
@@ -390,34 +634,28 @@ cayleydickson4_ldiv(vec4 k, cayleydickson4 a, double b)
 }
 
 static inline cayleydickson4
-cayleydickson4_rpow(vec4 k, double a, cayleydickson4 b)
+cayleydickson4_rpows(vec4 k, double a, cayleydickson4 b)
 {
-    return cayleydickson4_pow(k, cayleydickson4_from_re(a), b);
-}
-
-static inline cayleydickson4
-cayleydickson4_lpow(vec4 k, cayleydickson4 a, double b)
-{
-    return cayleydickson4_pow(k, a, cayleydickson4_from_re(b));
+    return cayleydickson4_rpow(k, cayleydickson4_from_re(a), b);
 }
 
 static inline cayleydickson4
 cayleydickson4_expm1(vec4 k, cayleydickson4 a)
 {
-    return cayleydickson4_lsub(cayleydickson4_exp(k, a), 1);
+    return cayleydickson4_apply(k, a, double_expm1, double_expm1_deriv1, complex_expm1);
 }
 
 static inline cayleydickson4
 cayleydickson4_log1p(vec4 k, cayleydickson4 a)
 {
-    return cayleydickson4_log(k, cayleydickson4_ladd(a, 1));
+    return cayleydickson4_apply(k, a, double_log1p, double_log1p_deriv1, complex_log1p);
 }
 
 static inline cayleydickson4
 cayleydickson4_mix(vec4 k, cayleydickson4 a, cayleydickson4 b, double t)
 {
     cayleydickson4 delta = cayleydickson4_mul(k, cayleydickson4_inv(k, a), b);
-    return cayleydickson4_mul(k, a, cayleydickson4_lpow(k, delta, t));
+    return cayleydickson4_mul(k, a, cayleydickson4_lpows(k, delta, t));
 }
 
 static inline complex
@@ -427,21 +665,19 @@ cayleydickson4_norm(vec4 k, cayleydickson4 a)
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 cayleydickson4_lmat(vec4 k, cayleydickson4 a, double result[ALGPY_CAYLEYDICKSON4_N*ALGPY_CAYLEYDICKSON4_N])
 {
-    cayleydickson4 coeffs[ALGPY_CAYLEYDICKSON4_N * ALGPY_CAYLEYDICKSON4_N];
-    int row, col, i;
-    cayleydickson4_coeffs(k, coeffs);
-    for (row = 0; row < ALGPY_CAYLEYDICKSON4_N; row++) {
-        for (col = 0; col < ALGPY_CAYLEYDICKSON4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_CAYLEYDICKSON4_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_CAYLEYDICKSON4_N + col].data[row];
-            }
-            result[row * ALGPY_CAYLEYDICKSON4_N + col] = value;
+    cayleydickson4 basis = {{0}};
+    cayleydickson4 product;
+    int row, col;
+    for (col = 0; col < ALGPY_CAYLEYDICKSON4_N; col++) {
+        basis.data[col] = 1;
+        product = cayleydickson4_mul(k, a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_CAYLEYDICKSON4_N; row++) {
+            result[row * ALGPY_CAYLEYDICKSON4_N + col] = product.data[row];
         }
     }
 }
@@ -449,16 +685,15 @@ cayleydickson4_lmat(vec4 k, cayleydickson4 a, double result[ALGPY_CAYLEYDICKSON4
 static inline void
 cayleydickson4_rmat(vec4 k, cayleydickson4 a, double result[ALGPY_CAYLEYDICKSON4_N*ALGPY_CAYLEYDICKSON4_N])
 {
-    cayleydickson4 coeffs[ALGPY_CAYLEYDICKSON4_N * ALGPY_CAYLEYDICKSON4_N];
-    int row, col, i;
-    cayleydickson4_coeffs(k, coeffs);
+    cayleydickson4 basis = {{0}};
+    cayleydickson4 product;
+    int row, col;
     for (row = 0; row < ALGPY_CAYLEYDICKSON4_N; row++) {
+        basis.data[row] = 1;
+        product = cayleydickson4_mul(k, basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_CAYLEYDICKSON4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_CAYLEYDICKSON4_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_CAYLEYDICKSON4_N + i].data[col];
-            }
-            result[row * ALGPY_CAYLEYDICKSON4_N + col] = value;
+            result[row * ALGPY_CAYLEYDICKSON4_N + col] = product.data[col];
         }
     }
 }

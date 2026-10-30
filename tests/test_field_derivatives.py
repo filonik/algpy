@@ -4,20 +4,9 @@ import math
 from pathlib import Path
 import shutil
 import subprocess
-
 import numpy as np
 import pytest
-
-
-FUNCTIONS = [
-    ("exp", np.exp), ("expm1", np.expm1), ("log", np.log), ("log1p", np.log1p),
-    ("inv", np.reciprocal), ("square", np.square), ("sqrt", np.sqrt),
-    ("sin", np.sin), ("cos", np.cos), ("tan", np.tan),
-    ("asin", np.arcsin), ("acos", np.arccos), ("atan", np.arctan),
-    ("sinh", np.sinh), ("cosh", np.cosh), ("tanh", np.tanh),
-    ("asinh", np.arcsinh), ("acosh", np.arccosh), ("atanh", np.arctanh),
-]
-INDICES = {name: i for i, (name, _) in enumerate(FUNCTIONS)}
+from field_reference import FUNCTIONS, INDICES, reference
 
 
 @pytest.fixture(scope="module")
@@ -70,14 +59,6 @@ void evaluate_complex(int function, int order, double x, double y, double out[2]
     return evaluate
 
 
-def reference(function, value, order):
-    # Extract a Taylor coefficient with a discrete contour integral. This
-    # checks the derivatives using only the function, without their formulas
-    # or the cancellation of a fourth-order finite difference.
-    radius = 0.125
-    circle = np.exp(2j*np.pi*np.arange(256)/256)
-    return (math.factorial(order)/radius**order
-            * np.mean(function(value+radius*circle)*circle**(-order)))
 
 
 @pytest.mark.parametrize("name,function", FUNCTIONS, ids=[name for name, _ in FUNCTIONS])
@@ -163,19 +144,37 @@ def test_tanh_derivatives_after_saturation(derivatives):
         assert derivatives("double", "tanh", order, 100) == pytest.approx(
             factor*np.exp(-200), rel=5e-15, abs=0)
 
-
-@pytest.mark.parametrize("name,function", FUNCTIONS[:4]+FUNCTIONS[6:],
-                         ids=[name for name, _ in FUNCTIONS[:4]+FUNCTIONS[6:]])
-def test_dual_callers(name, function):
-    from algpy.algebras import dual1, dual2
-
-    x = 1.5 if name in ["log", "sqrt", "acosh"] else 0.4
-    first = reference(function, complex(x), 1).real
-    second = reference(function, complex(x), 2).real
-    for cls, coefficients, expected in [
-        (dual1, [x, 0.3], [function(x), 0.3*first]),
-        (dual2, [x, 0.3, -0.2, 0.1],
-         [function(x), 0.3*first, -0.2*first, 0.1*first-0.06*second]),
-    ]:
-        actual = getattr(cls(*coefficients), name)()
-        np.testing.assert_allclose(cls.to_float(actual), expected, rtol=3e-10, atol=3e-10)
+def test_fields_and_integer_boundaries_in_c(tmp_path):
+    compiler = shutil.which("cc")
+    if compiler is None:
+        pytest.skip("C compiler unavailable")
+    root = Path(__file__).resolve().parents[1]
+    source = tmp_path/"ipow.c"
+    source.write_text('''
+#include "src/algpy/fields/double.h"
+#include "src/algpy/fields/complex.h"
+#include <assert.h>
+#include <fenv.h>
+int main(void) {
+    assert(double_ipow(0, 0) == 1);
+    assert(double_ipow(-1, INT64_MIN) == 1);
+    assert(double_ipow(-1, INT64_MAX) == -1);
+    assert(double_ipow(2, -3) == .125);
+    feclearexcept(FE_ALL_EXCEPT);
+    assert(double_ipow(1e200, 1) == 1e200);
+    assert(!fetestexcept(FE_OVERFLOW));
+    complex a = complex_make(0, 1);
+    complex result = complex_ipow(a, INT64_MIN);
+    assert(result.data[0] == 1 && result.data[1] == 0);
+    result = complex_ipow(a, INT64_MAX);
+    assert(result.data[0] == 0 && result.data[1] == -1);
+    result = complex_ipow(a, -3);
+    assert(result.data[0] == 0 && result.data[1] == 1);
+    return 0;
+}
+''')
+    binary = tmp_path/"ipow"
+    subprocess.run([compiler, "-std=c99", "-O2", "-Wall", "-Wextra", "-Werror",
+                    "-I", str(root), str(source), "-lm", "-o", str(binary)],
+                   check=True, capture_output=True, text=True)
+    subprocess.run([str(binary)], check=True)

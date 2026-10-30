@@ -31,7 +31,10 @@ typedef cayleydickson2 clifford2;
 #define clifford2_sub cayleydickson2_sub
 #define clifford2_equal cayleydickson2_equal
 #define clifford2_not_equal cayleydickson2_not_equal
-#define clifford2_pow cayleydickson2_pow
+#define clifford2_ipow cayleydickson2_ipow
+#define clifford2_rpow cayleydickson2_rpow
+#define clifford2_pow clifford2_rpow
+#define clifford2_lpow cayleydickson2_lpow
 #define clifford2_square cayleydickson2_square
 #define clifford2_norm cayleydickson2_norm
 #define clifford2_exp cayleydickson2_exp
@@ -59,8 +62,8 @@ typedef cayleydickson2 clifford2;
 #define clifford2_lmul cayleydickson2_lmul
 #define clifford2_rdiv cayleydickson2_rdiv
 #define clifford2_ldiv cayleydickson2_ldiv
-#define clifford2_rpow cayleydickson2_rpow
-#define clifford2_lpow cayleydickson2_lpow
+#define clifford2_rpows cayleydickson2_rpows
+#define clifford2_lpows cayleydickson2_lpows
 #define clifford2_mix cayleydickson2_mix
 
 #define clifford2_lmat cayleydickson2_lmat

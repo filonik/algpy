@@ -1,74 +1,308 @@
 # algpy
 
-## Build
+NumPy number types for Cayley-Dickson, Clifford, and multicomplex algebras,
+with up to 16 real components. Use them as scalars or NumPy array dtypes for
+arithmetic, elementary functions, and algebra-specific operations.
 
-    pip install .
+## Installation
 
-For development use `pip install -e .`.
+Requires Python 3.10 or later and NumPy. Install from this checkout:
+
+```sh
+python -m pip install .
+```
+
+## Quick start
+
+```python
+import numpy as np
+from algpy.algebras import quaternion
+
+q = quaternion(1, 2, 3, 4)  # coefficients of 1, i, j, k
+r = quaternion(2)         # omitted coefficients are zero
+
+q * r
+np.exp(q)
+q.inv()
+
+values = np.array([q, r], dtype=quaternion)
+np.sin(values)
+quaternion.to_float(values)  # shape (2, 4)
+```
 
 ## Algebras
 
-The algebra constructors create scalar types that can also be used as NumPy
-dtypes. Parameters specify the squares of the algebra's generators.
+General constructors live in `algpy.algebras.general`. Supply one to four
+real parameters to create a scalar type with 2, 4, 8, or 16 components.
+The parameters are the squares of the successive generators.
 
-### Multicomplex
+The numbered constructors `cayleydickson1`–`cayleydickson4`,
+`clifford1`–`clifford4`, and `multicomplex1`–`multicomplex4` are also
+available. The suffix counts generators; the dimension is two to that power.
+A general type's `K` is mutable: changing it changes operations on existing
+scalars and arrays of that type. Create separate types for parameter sets
+you want to use simultaneously.
 
-The multicomplex algebra with parameters `k0, ..., k(n-1)` is generated over
-the reals by commuting elements `e_i` satisfying `e_i² = k_i`. Its basis
-consists of products of distinct generators, giving `2ⁿ` real components.
-`multicomplex` accepts one to four parameters; the numbered
-`multicomplex1`–`multicomplex4` constructors are also available.
+The tables below cover dimensions 2, 4, and 8 for each family. Read a cell as
+**row times column**. The labels
+`1, e₀, e₁, e₀₁, e₂, e₀₂, e₁₂, e₀₁₂` denote the coefficient basis,
+in the same order as `Type.basis()` and `Type.to_float()`. Subscripts identify
+the generators in each product.
 
-```python
-from algpy.algebras.general import multicomplex
+The generators are `e₀`, `e₁`, and `e₂`, with squares `k₀`, `k₁`, and `k₂`.
+The remaining basis elements are `e₀₁ = e₀e₁`, `e₀₂ = e₀e₂`, `e₁₂ = e₁e₂`, and
+`e₀₁₂ = (e₀e₁)e₂`. Products such as `k₀k₁e₀₁` mean multiplication by real
+parameters. Substitute your type's `K`; for example, all `kᵢ = -1` gives
+octonions in the Cayley-Dickson table.
 
-mc = multicomplex(-1, 1)
-```
-
-The two-component specializations are `complex1`, given by
-`multicomplex1(-1)`, `dual1`, given by `multicomplex1(0)`, and `splitcomplex1`,
-given by `multicomplex1(+1)`. `complex2` is the four-component bicomplex specialization,
-`multicomplex2(-1, -1)`, and `dual2` is the four-component bi-dual specialization,
-`multicomplex2(0, 0)`. `splitcomplex2` is the four-component bi-split-complex
-specialization, `multicomplex2(+1, +1)`.
-
-Each specialization (`complex1`, `complex2`, `dual1`, `dual2`, `splitcomplex1`,
-`splitcomplex2`, `quaternion`) has its own C type and arithmetic implementation and is
-exported as a concrete class from `algpy.algebras`.
+For dimension 2, take the upper-left 2×2 block and only `k₀`. For dimension
+4, take the upper-left 4×4 block and `k₀, k₁`. The full tables use
+`K = (k₀, k₁, k₂)` in dimension 8.
 
 ### Cayley-Dickson
 
-The Cayley-Dickson construction builds successively doubled real algebras.
-At each step it adjoins a new generator whose square is set by the next
-parameter; the multiplication uses the Cayley-Dickson conjugation rule and is
-generally noncommutative (and, at higher dimensions, may be nonassociative).
-`cayleydickson` accepts one to four parameters, with numbered
-`cayleydickson1`–`cayleydickson4` constructors for the corresponding
-dimensions.
+| ×    | 1    | e₀    | e₁     | e₀₁    | e₂    | e₀₂     | e₁₂    | e₀₁₂    |
+| ---- | ---- | ----- | ------ | ------ | ----- | ------- | ------ | ------- |
+| 1    | 1    | e₀    | e₁     | e₀₁    | e₂    | e₀₂     | e₁₂    | e₀₁₂    |
+| e₀   | e₀   | k₀    | e₀₁    | k₀e₁   | e₀₂   | k₀e₂    | −e₀₁₂  | −k₀e₁₂  |
+| e₁   | e₁   | −e₀₁  | k₁     | −k₁e₀  | e₁₂   | e₀₁₂    | k₁e₂   | k₁e₀₂   |
+| e₀₁  | e₀₁  | −k₀e₁ | k₁e₀   | −k₀k₁  | e₀₁₂  | k₀e₁₂   | −k₁e₀₂ | −k₀k₁e₂ |
+| e₂   | e₂   | −e₀₂  | −e₁₂   | −e₀₁₂  | k₂    | −k₂e₀   | −k₂e₁  | −k₂e₀₁  |
+| e₀₂  | e₀₂  | −k₀e₂ | −e₀₁₂  | −k₀e₁₂ | k₂e₀  | −k₀k₂   | k₂e₀₁  | k₀k₂e₁  |
+| e₁₂  | e₁₂  | e₀₁₂  | −k₁e₂  | k₁e₀₂  | k₂e₁  | −k₂e₀₁  | −k₁k₂  | −k₁k₂e₀ |
+| e₀₁₂ | e₀₁₂ | k₀e₁₂ | −k₁e₀₂ | k₀k₁e₂ | k₂e₀₁ | −k₀k₂e₁ | k₁k₂e₀ | k₀k₁k₂  |
 
-The `quaternion` type is the Hamilton quaternion specialization
-`cayleydickson2(-1, -1)`. Its components are ordered `(w, x, y, z)`. It
-supports arithmetic, `exp`, `log`, `norm2`, and equality for scalars and NumPy
-arrays.
+The Cayley-Dickson construction successively doubles real algebras.
+Cayley-Dickson algebras are generally noncommutative from dimension 4 and
+nonassociative from dimension 8.
 
 ```python
 from algpy.algebras.general import cayleydickson
-from algpy.algebras import quaternion
 
-cd = cayleydickson(-1, -1)
-q = quaternion(1, 2, 3, 4)
+CD = cayleydickson(-1, -1, -1)  # octonion algebra, dimension 8
 ```
+
+The following fixed specializations are exported from `algpy.algebras`
+and `algpy.algebras.cayleydickson`:
+
+| Types        | Real components | Corresponding general algebra   |
+| ------------ | --------------- | ------------------------------- |
+| `real`       | 1               | Real numbers                    |
+| `quaternion` | 4               | `cayleydickson(-1, -1)`         |
+| `octonion`   | 8               | `cayleydickson(-1, -1, -1)`     |
+| `sedenion`   | 16              | `cayleydickson(-1, -1, -1, -1)` |
 
 ### Clifford
 
+| ×    | 1    | e₀    | e₁     | e₀₁     | e₂    | e₀₂    | e₁₂     | e₀₁₂    |
+| ---- | ---- | ----- | ------ | ------- | ----- | ------ | ------- | ------- |
+| 1    | 1    | e₀    | e₁     | e₀₁     | e₂    | e₀₂    | e₁₂     | e₀₁₂    |
+| e₀   | e₀   | k₀    | e₀₁    | k₀e₁    | e₀₂   | k₀e₂   | e₀₁₂    | k₀e₁₂   |
+| e₁   | e₁   | −e₀₁  | k₁     | −k₁e₀   | e₁₂   | −e₀₁₂  | k₁e₂    | −k₁e₀₂  |
+| e₀₁  | e₀₁  | −k₀e₁ | k₁e₀   | −k₀k₁   | e₀₁₂  | −k₀e₁₂ | k₁e₀₂   | −k₀k₁e₂ |
+| e₂   | e₂   | −e₀₂  | −e₁₂   | e₀₁₂    | k₂    | −k₂e₀  | −k₂e₁   | k₂e₀₁   |
+| e₀₂  | e₀₂  | −k₀e₂ | −e₀₁₂  | k₀e₁₂   | k₂e₀  | −k₀k₂  | −k₂e₀₁  | k₀k₂e₁  |
+| e₁₂  | e₁₂  | e₀₁₂  | −k₁e₂  | −k₁e₀₂  | k₂e₁  | k₂e₀₁  | −k₁k₂   | −k₁k₂e₀ |
+| e₀₁₂ | e₀₁₂ | k₀e₁₂ | −k₁e₀₂ | −k₀k₁e₂ | k₂e₀₁ | k₀k₂e₁ | −k₁k₂e₀ | −k₀k₁k₂ |
+
 The Clifford algebra with parameters `k0, ..., k(n-1)` is generated by elements
 `e_i` with `e_i² = k_i` and `e_i e_j = -e_j e_i` for distinct generators.
-Products of distinct generators form a `2ⁿ`-element basis. `clifford` accepts
-one to four parameters; the numbered `clifford1`–`clifford4` constructors are
-also available.
+Products of distinct generators form a `2ⁿ`-element basis.
+Clifford algebras are associative. Distinct generators anticommute, so
+multiplication is noncommutative from dimension 4.
 
 ```python
 from algpy.algebras.general import clifford
 
-cl = clifford(-1, 1)
+Cl = clifford(-1, 1, 0)  # dimension 8, including a zero-square generator
+x = Cl(1, .2, .3)
+Cl.N      # 8
+Cl.dtype  # use either Cl or Cl.dtype as a NumPy dtype
+Cl.K      # [-1.0, 1.0, 0.0]
 ```
+
+### Multicomplex
+
+| ×    | 1    | e₀    | e₁    | e₀₁    | e₂    | e₀₂    | e₁₂    | e₀₁₂   |
+| ---- | ---- | ----- | ----- | ------ | ----- | ------ | ------ | ------ |
+| 1    | 1    | e₀    | e₁    | e₀₁    | e₂    | e₀₂    | e₁₂    | e₀₁₂   |
+| e₀   | e₀   | k₀    | e₀₁   | k₀e₁   | e₀₂   | k₀e₂   | e₀₁₂   | k₀e₁₂  |
+| e₁   | e₁   | e₀₁   | k₁    | k₁e₀   | e₁₂   | e₀₁₂   | k₁e₂   | k₁e₀₂  |
+| e₀₁  | e₀₁  | k₀e₁  | k₁e₀  | k₀k₁   | e₀₁₂  | k₀e₁₂  | k₁e₀₂  | k₀k₁e₂ |
+| e₂   | e₂   | e₀₂   | e₁₂   | e₀₁₂   | k₂    | k₂e₀   | k₂e₁   | k₂e₀₁  |
+| e₀₂  | e₀₂  | k₀e₂  | e₀₁₂  | k₀e₁₂  | k₂e₀  | k₀k₂   | k₂e₀₁  | k₀k₂e₁ |
+| e₁₂  | e₁₂  | e₀₁₂  | k₁e₂  | k₁e₀₂  | k₂e₁  | k₂e₀₁  | k₁k₂   | k₁k₂e₀ |
+| e₀₁₂ | e₀₁₂ | k₀e₁₂ | k₁e₀₂ | k₀k₁e₂ | k₂e₀₁ | k₀k₂e₁ | k₁k₂e₀ | k₀k₁k₂ |
+
+The multicomplex algebra with parameters `k0, ..., k(n-1)` is generated over
+the reals by commuting elements `e_i` satisfying `e_i² = k_i`. Its basis
+consists of products of distinct generators, giving `2ⁿ` real components.
+Multicomplex algebras are associative and commutative.
+
+```python
+from algpy.algebras.general import multicomplex
+
+MC = multicomplex(-1, 1)  # dimension 4, commuting generators
+```
+
+The following fixed specializations are exported from `algpy.algebras`
+and `algpy.algebras.multicomplex`:
+
+| Types                           | Real components | Corresponding general algebra            |
+| ------------------------------- | --------------- | ---------------------------------------- |
+| `complex1`–`complex4`           | 2, 4, 8, 16     | `multicomplex` with every parameter `-1` |
+| `dual1`–`dual4`                 | 2, 4, 8, 16     | `multicomplex` with every parameter `0`  |
+| `splitcomplex1`–`splitcomplex4` | 2, 4, 8, 16     | `multicomplex` with every parameter `1`  |
+
+`algpy.algebras.complex` is an alias for `complex1`; both refer to the same
+algebra type. These are distinct from Python's built-in `complex` type.
+
+## Arrays and coefficients
+
+Each algebra type has `N` real coefficients, in the order returned by
+`Type.basis()`. Scalars accept those coefficients as positional arguments;
+omitted coefficients are zero. Scalars also support indexing, so `q[0]` is
+the real coefficient.
+
+Use `Type.from_float(data)` to turn an array with final axis of length `N`
+into an algebra array. `Type.to_float(values, dtype=None)` restores that
+coefficient axis; its default output dtype is `float64`.
+
+```python
+coefficients = np.array([[1., 2., 3., 4.], [2., 0., 0., 0.]])
+values = quaternion.from_float(coefficients)  # shape (2,), dtype quaternion
+restored = quaternion.to_float(values)       # shape (2, 4), dtype float64
+np.testing.assert_array_equal(restored, coefficients)
+
+single = quaternion.from_float([1, 2, 3, 4])  # zero-dimensional array
+scalar = single.item()                       # quaternion scalar
+quaternion.to_float(scalar)                  # shape (4,)
+quaternion.to_float(values, dtype=np.float32)
+```
+
+For a numeric multiplication table at any supported dimension, use
+`Type.coeffs()`. Entry `[i, j]` is `Type.basis()[i] * Type.basis()[j]`:
+
+```python
+A = clifford(-1, -1, -1)
+basis = A.basis()
+assert basis[1] * basis[2] == basis[3]
+assert basis[2] * basis[1] == -basis[3]
+products = A.coeffs()
+A.to_float(products)  # shape (8, 8, 8): row, column, output coefficient
+```
+
+Inputs to `from_float` are converted to `float64`. Conversions can share
+memory with contiguous `float64` data; use `.copy()` when you need independent
+storage. Strided inputs are accepted, with copying as needed.
+
+The supported NumPy ufuncs work elementwise on scalars and arrays, including
+broadcasting, real numeric operands, strided inputs, and `out=`:
+
+```python
+values = np.array([q, r], dtype=quaternion)
+scaled = values[:, None] * np.array([1., 2., 3.])  # shape (2, 3)
+out = np.empty_like(values)
+assert np.exp(values, out=out) is out
+np.add(values, 1, out=out)
+```
+
+For a scalar, `q.re()`, `q.im()`, `q.real`, and `q.imag` return algebra-valued
+projections, and `q.to_re()` returns the real coefficient as a Python float.
+`q.is_real()` checks whether all non-real coefficients are zero.
+For algebra arrays, `.real`/`.imag` and `np.real`/`np.imag` do not extract the
+algebra's components. Use `Type.to_float(array)[..., 0]` for real
+coefficients and `Type.to_float(array)[..., 1:]` for the remaining components.
+
+## Operations and elementary functions
+
+All algebras expose the following operations. NumPy functions in the last
+column operate on both scalars and arrays; named methods operate on scalars.
+
+| Operation                       | Scalar interface                               | NumPy interface                                                 |
+| ------------------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| Arithmetic                      | `+`, `-`, `*`, `/`, `**`                       | `np.add`, `np.subtract`, `np.multiply`, `np.divide`, `np.power` |
+| Unary signs                     | `+a`, `-a`                                     | `np.positive`, `np.negative`                                    |
+| Equality                        | `==`, `!=`                                     | `np.equal`, `np.not_equal`                                      |
+| Inverse, square, conjugate      | `a.inv()`, `a.square()`, `a.conjugate()`       | `np.reciprocal`, `np.square`, `np.conjugate`                    |
+| Exponential and logarithm       | `a.exp()`, `a.expm1()`, `a.log()`, `a.log1p()` | `np.exp`, `np.expm1`, `np.log`, `np.log1p`                      |
+| Square root                     | `a.sqrt()`                                     | `np.sqrt`                                                       |
+| Trigonometric functions         | `a.sin()`, `a.cos()`, `a.tan()`                | `np.sin`, `np.cos`, `np.tan`                                    |
+| Inverse trigonometric functions | `a.asin()`, `a.acos()`, `a.atan()`             | `np.arcsin`, `np.arccos`, `np.arctan`                           |
+| Hyperbolic functions            | `a.sinh()`, `a.cosh()`, `a.tanh()`             | `np.sinh`, `np.cosh`, `np.tanh`                                 |
+| Inverse hyperbolic functions    | `a.asinh()`, `a.acosh()`, `a.atanh()`          | `np.arcsinh`, `np.arccosh`, `np.arctanh`                        |
+
+The scalar inverse-function methods also accept the NumPy spellings, such
+as `a.arcsin()` and `a.arccosh()`. Class methods `Type.zero()`, `Type.one()`,
+and `Type.from_re(x)` construct the additive identity, multiplicative
+identity, and an embedded real number.
+
+Functions follow real domains or the principal complex branches available
+in the chosen algebra. Out-of-domain values can produce NaN components.
+For example, split-complex functions must be defined at every real channel,
+and dual logarithms and general powers require a positive real coefficient.
+Dual reciprocals require a nonzero real coefficient. Nilpotent components
+require the function to be differentiable to the corresponding order.
+
+### Powers and interpolation
+
+Multiplication order matters in noncommutative algebras:
+
+| Scalar call                | Definition                                            |
+| -------------------------- | ----------------------------------------------------- |
+| `a.ipow(n)`                | Integer power, including singular and nilpotent bases |
+| `a.lpow(b)`                | `exp(b * log(a))`                                     |
+| `a.rpow(b)`                | `exp(log(a) * b)`                                     |
+| `a ** b`, `np.power(a, b)` | Right-power, as in `a.rpow(b)`                        |
+| `a.mix(b, t)`              | `a * ((a.inv() * b) ** t)`, with those parentheses    |
+
+`lpow` and `rpow` accept an exponent from the same algebra or a real number.
+They agree in commutative algebras. `ipow` accepts integer objects, including
+NumPy integer scalars, within the signed 64-bit range; it raises
+`OverflowError` outside that range. Negative integer powers require an
+invertible base, and exponent zero returns the identity.
+
+```python
+from algpy.algebras import dual1
+
+epsilon = dual1(0, 1)
+assert epsilon.ipow(2) == dual1.zero()
+assert epsilon.ipow(0) == dual1.one()
+```
+
+### Norms, polynomials, and eigenvalues
+
+`a.norm()` returns an algebraic norm. Its Python return type depends on the
+algebra type:
+
+| Algebras                                                                             | Return type        |
+| ------------------------------------------------------------------------------------ | ------------------ |
+| `real`, `complex1`–`complex4`, `dual1`–`dual4`, `quaternion`, `octonion`, `sedenion` | Built-in `float`   |
+| `splitcomplex1`–`splitcomplex4` and all general parameterized types                  | Built-in `complex` |
+
+Complex-valued norms always return `complex`, even for a purely real result;
+changing `K` does not change that return type. For the Euclidean length of
+the coefficient vector, use `np.linalg.norm(Type.to_float(a))`.
+
+`a.minpoly()` returns the coefficients of the algebra's **generic minimal
+polynomial**, evaluated at `a`, in ascending order (constant term first).
+This polynomial can have repeated roots and can have higher degree than the
+minimal polynomial of the particular element. `a.eivals()` returns its roots
+as a NumPy complex array, including multiplicities.
+
+### Multiplication matrices
+
+`a.lmat()` and `a.rmat()` return independent, writable `(N, N)` NumPy
+`float64` arrays in coefficient order. Left matrices act on columns, and
+right matrices on rows:
+
+```python
+np.testing.assert_allclose(q.lmat() @ quaternion.to_float(r),
+                           quaternion.to_float(q * r))
+np.testing.assert_allclose(quaternion.to_float(q) @ r.rmat(),
+                           quaternion.to_float(q * r))
+```
+
+These describe a single multiplication in every algebra. In nonassociative
+algebras, keep parentheses explicit; products and elementary functions of
+multiplication matrices need not represent the corresponding algebra operations.

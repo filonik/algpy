@@ -1,6 +1,7 @@
 #ifndef ALGPY_COMPLEX4_H
 #define ALGPY_COMPLEX4_H
 
+#include <stdint.h>
 #include "../../vectorspaces/vec16.h"
 #include "complex3.h"
 
@@ -233,10 +234,57 @@ complex4_log(complex4 a)
     return complex4_apply(a, complex3_log);
 }
 
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline complex4
+complex4_ipow(complex4 a, int64_t b)
+{
+    complex4 result = complex4_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return complex4_mul(a, a);
+    }
+    if (b == -1) {
+        return complex4_inv(a);
+    }
+    if (b < 0) {
+        a = complex4_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = complex4_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = complex4_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline complex4
+complex4_rpow(complex4 a, complex4 b)
+{
+    return complex4_exp(complex4_mul(complex4_log(a), b));
+}
+
 static inline complex4
 complex4_pow(complex4 a, complex4 b)
 {
-    return complex4_exp(complex4_mul(complex4_log(a), b));
+    return complex4_rpow(a, b);
+}
+
+static inline complex4
+complex4_lpow(complex4 a, complex4 b)
+{
+    return complex4_rpow(a, b);
 }
 
 static inline complex4
@@ -379,22 +427,22 @@ complex4_ldiv(complex4 a, double b)
 }
 
 static inline complex4
-complex4_rpow(double a, complex4 b)
+complex4_rpows(double a, complex4 b)
 {
-    return complex4_pow(complex4_from_re(a), b);
+    return complex4_rpow(complex4_from_re(a), b);
 }
 
 static inline complex4
-complex4_lpow(complex4 a, double b)
+complex4_lpows(complex4 a, double b)
 {
-    return complex4_pow(a, complex4_from_re(b));
+    return complex4_rpow(a, complex4_from_re(b));
 }
 
 static inline complex4
 complex4_mix(complex4 a, complex4 b, double t)
 {
     complex4 delta = complex4_mul(complex4_inv(a), b);
-    return complex4_mul(a, complex4_lpow(delta, t));
+    return complex4_mul(a, complex4_lpows(delta, t));
 }
 
 static inline void
@@ -500,21 +548,19 @@ complex4_eivals(complex4 a, complex result[16])
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 complex4_lmat(complex4 a, double result[ALGPY_COMPLEX4_N*ALGPY_COMPLEX4_N])
 {
-    complex4 coeffs[ALGPY_COMPLEX4_N * ALGPY_COMPLEX4_N];
-    int row, col, i;
-    complex4_coeffs(coeffs);
-    for (row = 0; row < ALGPY_COMPLEX4_N; row++) {
-        for (col = 0; col < ALGPY_COMPLEX4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX4_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_COMPLEX4_N + col].data[row];
-            }
-            result[row * ALGPY_COMPLEX4_N + col] = value;
+    complex4 basis = {{0}};
+    complex4 product;
+    int row, col;
+    for (col = 0; col < ALGPY_COMPLEX4_N; col++) {
+        basis.data[col] = 1;
+        product = complex4_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_COMPLEX4_N; row++) {
+            result[row * ALGPY_COMPLEX4_N + col] = product.data[row];
         }
     }
 }
@@ -522,16 +568,15 @@ complex4_lmat(complex4 a, double result[ALGPY_COMPLEX4_N*ALGPY_COMPLEX4_N])
 static inline void
 complex4_rmat(complex4 a, double result[ALGPY_COMPLEX4_N*ALGPY_COMPLEX4_N])
 {
-    complex4 coeffs[ALGPY_COMPLEX4_N * ALGPY_COMPLEX4_N];
-    int row, col, i;
-    complex4_coeffs(coeffs);
+    complex4 basis = {{0}};
+    complex4 product;
+    int row, col;
     for (row = 0; row < ALGPY_COMPLEX4_N; row++) {
+        basis.data[row] = 1;
+        product = complex4_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_COMPLEX4_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_COMPLEX4_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_COMPLEX4_N + i].data[col];
-            }
-            result[row * ALGPY_COMPLEX4_N + col] = value;
+            result[row * ALGPY_COMPLEX4_N + col] = product.data[col];
         }
     }
 }

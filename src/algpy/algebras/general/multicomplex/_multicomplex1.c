@@ -137,6 +137,13 @@ pymc1_hash(PyObject *self)
     multicomplex1 v = ((PyMC1 *)self)->v;
     PyObject *obj;
     Py_hash_t h;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_MULTICOMPLEX1_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (v.data[1] == 0) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -155,9 +162,14 @@ pymc1_hash(PyObject *self)
 static Info *
 binary_info(PyObject *a, PyObject *b)
 {
-    PyObject *o = PyType_GetSlot(Py_TYPE(a), Py_tp_new) == (void *)pymc1_new
-                  ? a : b;
-    return info_of_type(Py_TYPE(o));
+    PyTypeObject *type;
+    /* A subclass may override __new__; recognize its algebra base type. */
+    for (type = Py_TYPE(a); type != NULL; type = type->tp_base) {
+        if (PyType_GetSlot(type, Py_tp_new) == (void *)pymc1_new) {
+            return info_of_type(Py_TYPE(a));
+        }
+    }
+    return info_of_type(Py_TYPE(b));
 }
 
 static PyObject *
@@ -638,6 +650,48 @@ pymc1_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pymc1_lpow(PyObject *self, PyObject *other)
+{
+    multicomplex1 b;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    r = mc1_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return mc1_from_value(Py_TYPE(self),
+        multicomplex1_lpow(info->k, ((PyMC1 *)self)->v, b));
+}
+
+static PyObject *
+pymc1_rpow(PyObject *self, PyObject *other)
+{
+    multicomplex1 b;
+    int r;
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    r = mc1_from_object(info, other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return mc1_from_value(Py_TYPE(self),
+        multicomplex1_rpow(info->k, ((PyMC1 *)self)->v, b));
+}
+
+static PyObject *
 pymc1_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -683,6 +737,20 @@ pymc1_from_float(PyObject *cls, PyObject *args, PyObject *kwargs)
     return algpy_from_float(args, kwargs, info->typenum, 2);
 }
 
+static PyObject *
+pymc1_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    Info *info = info_of_type(Py_TYPE(self));
+    if (info == NULL) {
+        return NULL;
+    }
+    return mc1_from_value(Py_TYPE(self), multicomplex1_ipow(info->k, ((PyMC1 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pymc1_methods[] = {
     {"to_float", (PyCFunction)pymc1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pymc1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -690,27 +758,30 @@ static PyMethodDef pymc1_methods[] = {
     {"to_re", pymc1_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pymc1_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pymc1_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"inv", pymc1_inv, METH_NOARGS, "inv. See the C header for TODO status."},
-    {"square", pymc1_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"exp", pymc1_exp, METH_NOARGS, "exp. See the C header for TODO status."},
-    {"expm1", pymc1_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log", pymc1_log, METH_NOARGS, "log. See the C header for TODO status."},
-    {"log1p", pymc1_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sqrt", pymc1_sqrt, METH_NOARGS, "sqrt. See the C header for TODO status."},
-    {"sin", pymc1_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pymc1_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pymc1_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pymc1_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pymc1_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pymc1_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pymc1_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pymc1_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pymc1_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pymc1_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pymc1_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pymc1_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pymc1_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pymc1_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"lpow", pymc1_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pymc1_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pymc1_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
+    {"inv", pymc1_inv, METH_NOARGS, "inv."},
+    {"square", pymc1_square, METH_NOARGS, "square."},
+    {"exp", pymc1_exp, METH_NOARGS, "exp."},
+    {"expm1", pymc1_expm1, METH_NOARGS, "expm1."},
+    {"log", pymc1_log, METH_NOARGS, "log."},
+    {"log1p", pymc1_log1p, METH_NOARGS, "log1p."},
+    {"sqrt", pymc1_sqrt, METH_NOARGS, "sqrt."},
+    {"sin", pymc1_sin, METH_NOARGS, "sin."},
+    {"cos", pymc1_cos, METH_NOARGS, "cos."},
+    {"tan", pymc1_tan, METH_NOARGS, "tan."},
+    {"asin", pymc1_asin, METH_NOARGS, "asin."},
+    {"acos", pymc1_acos, METH_NOARGS, "acos."},
+    {"atan", pymc1_atan, METH_NOARGS, "atan."},
+    {"sinh", pymc1_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pymc1_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pymc1_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pymc1_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pymc1_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pymc1_atanh, METH_NOARGS, "atanh."},
+    {"re", pymc1_re, METH_NOARGS, "re."},
+    {"im", pymc1_im, METH_NOARGS, "im."},
     {"arcsin", pymc1_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pymc1_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pymc1_atan, METH_NOARGS, "Alias for atan."},
@@ -727,7 +798,7 @@ static PyMethodDef pymc1_methods[] = {
     {"norm2", pymc1_norm2, METH_NOARGS, "Norm x*x - k*y*y."},
     {"lmat", pymc1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pymc1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pymc1_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial."},
+    {"minpoly", pymc1_minpoly, METH_NOARGS, "Coefficients of the generic minimal polynomial."},
     {"eivals", pymc1_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pymc1_reduce, METH_NOARGS, "Support for pickle."},
     {NULL, NULL, 0, NULL}
@@ -805,7 +876,7 @@ pymc1_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return mc1_from_value((PyTypeObject *)info->type, multicomplex1_pow(info->k, x, y));
+    return mc1_from_value((PyTypeObject *)info->type, multicomplex1_rpow(info->k, x, y));
 }
 
 static PyType_Slot pymc1_slots[] = {
@@ -844,12 +915,28 @@ static PyType_Spec pymc1_spec = {
 
 /* NumPy dtype support */
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 2; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npymc1_getitem(void *data, void *arr)
 {
     multicomplex1 v;
     PyArray_Descr *descr = PyArray_DESCR((PyArrayObject *)arr);
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return mc1_from_value(descr->typeobj, v);
 }
 
@@ -890,21 +977,11 @@ npymc1_setitem(PyObject *item, void *data, void *arr)
         Py_DECREF(seq);
         v = multicomplex1_make(d[0], d[1]);
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
-}
-
-static void
-swap_bytes(char *p)
-{
-    int i, j;
-    for (i = 0; i < 2; i++) {
-        for (j = 0; j < 4; j++) {
-            char t = p[8 * i + j];
-            p[8 * i + j] = p[8 * i + 7 - j];
-            p[8 * i + 7 - j] = t;
-        }
-    }
 }
 
 static void
@@ -941,6 +1018,9 @@ npymc1_nonzero(void *data, void *arr)
 {
     multicomplex1 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec2_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -950,7 +1030,7 @@ typedef struct { char c; multicomplex1 v; } align_test;
 
 /* Casts from the builtin real types (target type is found via `toarr`) */
 
-#define MC1_CAST_FROM(name, type)                                          \
+#define MC1_CAST_FROM(name, type, convert)                                          \
     static void                                                            \
     npycast_##name##_to_mc1(void *from, void *to, npy_intp n,              \
                             void *fromarr, void *toarr)                    \
@@ -959,31 +1039,33 @@ typedef struct { char c; multicomplex1 v; } align_test;
         multicomplex1 *dst = (multicomplex1 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = multicomplex1_make((double)src[i], 0);                \
+            dst[i] = multicomplex1_make(convert(src[i]), 0);                \
         }                                                                  \
     }
 
-#define MC1_REAL_TYPES(X)                                                  \
-    X(BOOL, npy_bool)                                                      \
-    X(BYTE, npy_byte)                                                      \
-    X(UBYTE, npy_ubyte)                                                    \
-    X(SHORT, npy_short)                                                    \
-    X(USHORT, npy_ushort)                                                  \
-    X(INT, npy_int)                                                        \
-    X(UINT, npy_uint)                                                      \
-    X(LONG, npy_long)                                                      \
-    X(ULONG, npy_ulong)                                                    \
-    X(LONGLONG, npy_longlong)                                              \
-    X(ULONGLONG, npy_ulonglong)                                            \
-    X(FLOAT, npy_float)                                                    \
-    X(DOUBLE, npy_double)
+#define MC1_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 MC1_REAL_TYPES(MC1_CAST_FROM)
 
 static int
 register_casts(int typenum)
 {
-#define REGISTER_CAST(name, type)                                          \
+#define REGISTER_CAST(name, type, convert)                                          \
     {                                                                      \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);           \
         if (from == NULL) {                                                \
@@ -1136,7 +1218,7 @@ register_ufuncs(Info *info, PyObject *numpy)
         BIN("subtract", op_sub) ||
         BIN("multiply", multicomplex1_mul) ||
         BIN("divide", multicomplex1_div) ||
-        BIN("power", multicomplex1_pow) ||
+        BIN("power", multicomplex1_rpow) ||
         UN("positive", multicomplex1_pos) ||
         UN("negative", multicomplex1_neg) ||
         UN("conjugate", multicomplex1_conjugate) ||

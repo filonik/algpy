@@ -1,32 +1,20 @@
 """Left matrices act on coefficient columns, right matrices on rows."""
+
 from functools import lru_cache
-import itertools
+
 
 import numpy as np
+
 import pytest
 
 from algpy import algebras
+
 from algpy.algebras import general
-from test_api_consistency import CONCRETE, FAMILIES
 
 
 @lru_cache(None)
 def parameterized_type(family, order):
     return getattr(general, f"{family}{order}")(*([-1]*order))
-
-
-@pytest.fixture(params=[
-    *((family, n, True) for family in FAMILIES for n in range(1, 5)),
-    *((name, n, False) for name, n in CONCRETE),
-], ids=lambda p: f"{p[0]}{p[1] if p[2] else ''}")
-def algebra(request):
-    name, size, parameterized = request.param
-    if parameterized:
-        cls = parameterized_type(name, size)
-        cls.K = [-1]*size
-        return cls
-    return getattr(algebras, name)
-
 
 def assert_action(cls, a, b):
     structure = cls.to_float(cls.coeffs())
@@ -44,8 +32,7 @@ def assert_action(cls, a, b):
     np.testing.assert_allclose(cls.to_float(a) @ right, cls.to_float(a*b),
                                rtol=2e-12, atol=2e-12)
 
-
-def test_matrix_shape_dtype_and_action(algebra):
+def check_matrix_shape_dtype_and_action(algebra):
     cls = algebra
     rng = np.random.default_rng(71)
     a = cls(*rng.uniform(-1, 1, cls.N))
@@ -63,8 +50,7 @@ def test_matrix_shape_dtype_and_action(algebra):
     np.testing.assert_array_equal(cls.one().lmat(), np.eye(cls.N))
     np.testing.assert_array_equal(cls.one().rmat(), np.eye(cls.N))
 
-
-def test_linearity_and_independent_results(algebra):
+def check_linearity_and_independent_results(algebra):
     cls = algebra
     rng = np.random.default_rng(72)
     a = cls(*rng.uniform(-1, 1, cls.N))
@@ -81,12 +67,7 @@ def test_linearity_and_independent_results(algebra):
             getattr(a, name)(b)
 
 
-PARAMETERS = [k for n in range(1, 5) for k in itertools.product([-2, 0, 0.5], repeat=n)]
-
-
-@pytest.mark.parametrize("family", FAMILIES)
-@pytest.mark.parametrize("parameters", PARAMETERS, ids=str)
-def test_general_parameters(family, parameters):
+def check_general_parameters(family, parameters):
     cls = parameterized_type(family, len(parameters))
     cls.K = parameters
     rng = np.random.default_rng(73)
@@ -94,10 +75,7 @@ def test_general_parameters(family, parameters):
     b = cls(*rng.uniform(-1, 1, cls.N))
     assert_action(cls, a, b)
 
-
-@pytest.mark.parametrize("family", FAMILIES)
-@pytest.mark.parametrize("order", [1, 2, 3, 4])
-def test_matrices_read_current_parameters(family, order):
+def check_matrices_read_current_parameters(family, order):
     cls = parameterized_type(family, order)
     cls.K = [-1]*order
     a = cls.basis()[1]
@@ -108,8 +86,7 @@ def test_matrices_read_current_parameters(family, order):
         assert old[index] == -1
     assert_action(cls, a, cls(*np.linspace(-0.5, 0.5, cls.N)))
 
-
-def test_quaternion_orientation():
+def check_quaternion_orientation():
     q = algebras.quaternion(1, 2, 3, 4)
     np.testing.assert_array_equal(q.lmat(), [
         [1, -2, -3, -4], [2, 1, -4, 3], [3, 4, 1, -2], [4, -3, 2, 1],
@@ -118,21 +95,12 @@ def test_quaternion_orientation():
         [1, 2, 3, 4], [-2, 1, -4, 3], [-3, 4, 1, -2], [-4, -3, 2, 1],
     ])
 
-
-@pytest.mark.parametrize("cls,expected", [
-    (algebras.real, [[2]]),
-    (algebras.complex1, [[2, -3], [3, 2]]),
-    (algebras.splitcomplex1, [[2, 3], [3, 2]]),
-    (algebras.dual1, [[2, 0], [3, 2]]),
-])
-def test_small_commutative_matrices(cls, expected):
+def check_small_commutative_matrices(cls, expected):
     value = cls(2) if cls.N == 1 else cls(2, 3)
     np.testing.assert_array_equal(value.lmat(), expected)
     np.testing.assert_array_equal(value.rmat(), np.array(expected).T)
 
-
-@pytest.mark.parametrize("cls", [algebras.octonion, algebras.sedenion])
-def test_nonassociative_products(cls):
+def check_nonassociative_products(cls):
     basis = cls.basis()
     a, b, c = basis[1], basis[2], basis[4]
     direct = (a*b).lmat() @ cls.to_float(c)

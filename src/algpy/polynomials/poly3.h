@@ -3,6 +3,8 @@
 
 #define ALGPY_POLY3_N 3
 
+#include <float.h>
+
 #include "poly2.h"
 
 /* Ascending real coefficients; roots_to_coeffs returns the monic polynomial.
@@ -58,6 +60,18 @@ poly3_coeffs_to_roots(const double p[ALGPY_POLY3_N+1], complex result[ALGPY_POLY
         result[0] = complex_make(2*x-shift, 0);
         result[1] = complex_make(-x-y-shift, 0);
         result[2] = complex_make(-x+y-shift, 0);
+    }
+    /* One Newton correction removes the final rounding error of the closed
+     * formula at simple real roots. Skip multiple roots, where division by
+     * the nearly zero derivative would amplify coefficient roundoff. */
+    for (int i = 0; i < 3; i++) {
+        double x = result[i].data[0];
+        double derivative = (3*x + 2*a)*x + b;
+        double scale = 3*x*x + 2*fabs(a*x) + fabs(b);
+        if (result[i].data[1] == 0 && fabs(derivative) > 8*DBL_EPSILON*scale) {
+            double residual = ((x + a)*x + b)*x + c;
+            result[i].data[0] -= residual/derivative;
+        }
     }
 }
 

@@ -99,6 +99,13 @@ pycomplex3_hash(PyObject *self)
     complex3 v = ((PyComplex3 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_COMPLEX3_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (complex3_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pycomplex3_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_COMPLEX3(complex3_pow(x, y));
+    return NEW_COMPLEX3(complex3_rpow(x, y));
 }
 
 #define COMPLEX3_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pycomplex3_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pycomplex3_lpow(PyObject *self, PyObject *other)
+{
+    complex3 b;
+    int r;
+    r = complex3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex3_FromValue(Py_TYPE(self),
+        complex3_lpow(((PyComplex3 *)self)->v, b));
+}
+
+static PyObject *
+pycomplex3_rpow(PyObject *self, PyObject *other)
+{
+    complex3 b;
+    int r;
+    r = complex3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyComplex3_FromValue(Py_TYPE(self),
+        complex3_rpow(((PyComplex3 *)self)->v, b));
+}
+
+static PyObject *
 pycomplex3_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pycomplex3_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs
     return algpy_from_float(args, kwargs, npy_complex3, 8);
 }
 
+static PyObject *
+pycomplex3_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_COMPLEX3(complex3_ipow(((PyComplex3 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pycomplex3_methods[] = {
     {"to_float", (PyCFunction)pycomplex3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pycomplex3_methods[] = {
     {"to_re", pycomplex3_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pycomplex3_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pycomplex3_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pycomplex3_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pycomplex3_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pycomplex3_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pycomplex3_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pycomplex3_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pycomplex3_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pycomplex3_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pycomplex3_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pycomplex3_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pycomplex3_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pycomplex3_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pycomplex3_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pycomplex3_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pycomplex3_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pycomplex3_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pycomplex3_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pycomplex3_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pycomplex3_square, METH_NOARGS, "square."},
+    {"expm1", pycomplex3_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pycomplex3_log1p, METH_NOARGS, "log1p."},
+    {"sin", pycomplex3_sin, METH_NOARGS, "sin."},
+    {"cos", pycomplex3_cos, METH_NOARGS, "cos."},
+    {"tan", pycomplex3_tan, METH_NOARGS, "tan."},
+    {"asin", pycomplex3_asin, METH_NOARGS, "asin."},
+    {"acos", pycomplex3_acos, METH_NOARGS, "acos."},
+    {"atan", pycomplex3_atan, METH_NOARGS, "atan."},
+    {"sinh", pycomplex3_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pycomplex3_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pycomplex3_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pycomplex3_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pycomplex3_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pycomplex3_atanh, METH_NOARGS, "atanh."},
+    {"re", pycomplex3_re, METH_NOARGS, "re."},
+    {"im", pycomplex3_im, METH_NOARGS, "im."},
     {"arcsin", pycomplex3_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pycomplex3_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pycomplex3_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pycomplex3_methods[] = {
     {"basis", pycomplex3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pycomplex3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycomplex3_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pycomplex3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pycomplex3_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pycomplex3_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pycomplex3_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pycomplex3_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pycomplex3_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pycomplex3_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pycomplex3_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pycomplex3_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pycomplex3_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pycomplex3_exp, METH_NOARGS, "exp."},
     {"log", pycomplex3_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pycomplex3_spec = {
     .slots = pycomplex3_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npycomplex3_getitem(void *data, void *arr)
 {
     complex3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_COMPLEX3(v);
 }
 
@@ -670,6 +740,9 @@ npycomplex3_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pycomplex3_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 8; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pycomplex3_nonzero(void *data, void *arr)
 {
     complex3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec8_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pycomplex3_descr_proto = {
     &pycomplex3_arrfuncs,
 };
 
-#define COMPLEX3_CAST_FROM(name, type)                                       \
+#define COMPLEX3_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pycomplex3_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pycomplex3_descr_proto = {
         complex3 *dst = (complex3 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = complex3_from_re((double)src[i]);                      \
+            dst[i] = complex3_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define COMPLEX3_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define COMPLEX3_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 COMPLEX3_REAL_TYPES(COMPLEX3_CAST_FROM)
 
 static int
 pycomplex3_register_casts(void)
 {
-#define REGISTER_COMPLEX3_CAST(name, type)                                   \
+#define REGISTER_COMPLEX3_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pycomplex3_register_ufuncs(PyObject *numpy)
         pycomplex3_register_loop(numpy, "subtract", loop_complex3_binary, 3, 0, complex3_sub) ||
         pycomplex3_register_loop(numpy, "multiply", loop_complex3_binary, 3, 0, complex3_mul) ||
         pycomplex3_register_loop(numpy, "divide", loop_complex3_binary, 3, 0, complex3_div) ||
-        pycomplex3_register_loop(numpy, "power", loop_complex3_binary, 3, 0, complex3_pow) ||
+        pycomplex3_register_loop(numpy, "power", loop_complex3_binary, 3, 0, complex3_rpow) ||
         pycomplex3_register_loop(numpy, "positive", loop_complex3_unary, 2, 0, complex3_pos) ||
         pycomplex3_register_loop(numpy, "negative", loop_complex3_unary, 2, 0, complex3_neg) ||
         pycomplex3_register_loop(numpy, "conjugate", loop_complex3_unary, 2, 0, complex3_conjugate) ||

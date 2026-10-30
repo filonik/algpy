@@ -39,6 +39,10 @@ poly4_coeffs_to_roots(const double p[ALGPY_POLY4_N+1], complex result[ALGPY_POLY
     double qq = (8*shift*shift - 2*b)*shift + c;
     double rr = ((-3*shift*shift + b)*shift - c)*shift + d;
     double qscale = fabs(8*shift*shift*shift) + fabs(2*b*shift) + fabs(c);
+    /* In a centred polynomial, qq may itself consist only of accumulated
+     * multiplication roundoff. Include the natural cubic coefficient scale;
+     * otherwise a nearly repeated biquadratic can give s=0 and qq/s below. */
+    qscale += fabs(pp)*sqrt(fabs(pp)) + sqrt(fabs(rr))*sqrt(sqrt(fabs(rr)));
     int i;
     if (d == 0) {
         poly3_coeffs_to_roots(p+1, result);

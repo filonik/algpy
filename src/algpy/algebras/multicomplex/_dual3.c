@@ -99,6 +99,13 @@ pydual3_hash(PyObject *self)
     dual3 v = ((PyDual3 *)self)->v;
     PyObject *obj;
     Py_hash_t result;
+    int i;
+    /* NaN hashes must not depend on temporary Python float allocations. */
+    for (i = 0; i < ALGPY_DUAL3_N; i++) {
+        if (isnan(v.data[i])) {
+            return 0;
+        }
+    }
     if (dual3_is_real(v)) {
         obj = PyFloat_FromDouble(v.data[0]);
     }
@@ -172,7 +179,7 @@ pydual3_pow(PyObject *a, PyObject *b, PyObject *mod)
         }
         Py_RETURN_NOTIMPLEMENTED;
     }
-    return NEW_DUAL3(dual3_pow(x, y));
+    return NEW_DUAL3(dual3_rpow(x, y));
 }
 
 #define DUAL3_UNARY(name, expr)                                           \
@@ -468,6 +475,40 @@ pydual3_from_re(PyObject *cls, PyObject *value)
 }
 
 static PyObject *
+pydual3_lpow(PyObject *self, PyObject *other)
+{
+    dual3 b;
+    int r;
+    r = dual3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "lpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyDual3_FromValue(Py_TYPE(self),
+        dual3_lpow(((PyDual3 *)self)->v, b));
+}
+
+static PyObject *
+pydual3_rpow(PyObject *self, PyObject *other)
+{
+    dual3 b;
+    int r;
+    r = dual3_from_object(other, &b);
+    if (r < 0) {
+        return NULL;
+    }
+    if (r == 0) {
+        PyErr_SetString(PyExc_TypeError, "rpow expects a value of the same algebra or a real number");
+        return NULL;
+    }
+    return PyDual3_FromValue(Py_TYPE(self),
+        dual3_rpow(((PyDual3 *)self)->v, b));
+}
+
+static PyObject *
 pydual3_mix(PyObject *self, PyObject *args)
 {
     PyObject *other;
@@ -501,6 +542,16 @@ pydual3_from_float(PyObject *Py_UNUSED(cls), PyObject *args, PyObject *kwargs)
     return algpy_from_float(args, kwargs, npy_dual3, 8);
 }
 
+static PyObject *
+pydual3_ipow(PyObject *self, PyObject *arg)
+{
+    long long exponent = PyLong_AsLongLong(arg);
+    if (exponent == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    return NEW_DUAL3(dual3_ipow(((PyDual3 *)self)->v, (int64_t)exponent));
+}
+
 static PyMethodDef pydual3_methods[] = {
     {"to_float", (PyCFunction)pydual3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pydual3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -508,23 +559,23 @@ static PyMethodDef pydual3_methods[] = {
     {"to_re", pydual3_to_re, METH_NOARGS, "Real coefficient."},
     {"from_re", pydual3_from_re, METH_O | METH_CLASS, "Embed a real number."},
     {"mix", pydual3_mix, METH_VARARGS, "mix(other, t): self * (inv(self) * other)**t."},
-    {"square", pydual3_square, METH_NOARGS, "square. See the C header for TODO status."},
-    {"expm1", pydual3_expm1, METH_NOARGS, "expm1. See the C header for TODO status."},
-    {"log1p", pydual3_log1p, METH_NOARGS, "log1p. See the C header for TODO status."},
-    {"sin", pydual3_sin, METH_NOARGS, "sin. See the C header for TODO status."},
-    {"cos", pydual3_cos, METH_NOARGS, "cos. See the C header for TODO status."},
-    {"tan", pydual3_tan, METH_NOARGS, "tan. See the C header for TODO status."},
-    {"asin", pydual3_asin, METH_NOARGS, "asin. See the C header for TODO status."},
-    {"acos", pydual3_acos, METH_NOARGS, "acos. See the C header for TODO status."},
-    {"atan", pydual3_atan, METH_NOARGS, "atan. See the C header for TODO status."},
-    {"sinh", pydual3_sinh, METH_NOARGS, "sinh. See the C header for TODO status."},
-    {"cosh", pydual3_cosh, METH_NOARGS, "cosh. See the C header for TODO status."},
-    {"tanh", pydual3_tanh, METH_NOARGS, "tanh. See the C header for TODO status."},
-    {"asinh", pydual3_asinh, METH_NOARGS, "asinh. See the C header for TODO status."},
-    {"acosh", pydual3_acosh, METH_NOARGS, "acosh. See the C header for TODO status."},
-    {"atanh", pydual3_atanh, METH_NOARGS, "atanh. See the C header for TODO status."},
-    {"re", pydual3_re, METH_NOARGS, "re. See the C header for TODO status."},
-    {"im", pydual3_im, METH_NOARGS, "im. See the C header for TODO status."},
+    {"square", pydual3_square, METH_NOARGS, "square."},
+    {"expm1", pydual3_expm1, METH_NOARGS, "expm1."},
+    {"log1p", pydual3_log1p, METH_NOARGS, "log1p."},
+    {"sin", pydual3_sin, METH_NOARGS, "sin."},
+    {"cos", pydual3_cos, METH_NOARGS, "cos."},
+    {"tan", pydual3_tan, METH_NOARGS, "tan."},
+    {"asin", pydual3_asin, METH_NOARGS, "asin."},
+    {"acos", pydual3_acos, METH_NOARGS, "acos."},
+    {"atan", pydual3_atan, METH_NOARGS, "atan."},
+    {"sinh", pydual3_sinh, METH_NOARGS, "sinh."},
+    {"cosh", pydual3_cosh, METH_NOARGS, "cosh."},
+    {"tanh", pydual3_tanh, METH_NOARGS, "tanh."},
+    {"asinh", pydual3_asinh, METH_NOARGS, "asinh."},
+    {"acosh", pydual3_acosh, METH_NOARGS, "acosh."},
+    {"atanh", pydual3_atanh, METH_NOARGS, "atanh."},
+    {"re", pydual3_re, METH_NOARGS, "re."},
+    {"im", pydual3_im, METH_NOARGS, "im."},
     {"arcsin", pydual3_asin, METH_NOARGS, "Alias for asin."},
     {"arccos", pydual3_acos, METH_NOARGS, "Alias for acos."},
     {"arctan", pydual3_atan, METH_NOARGS, "Alias for atan."},
@@ -537,11 +588,14 @@ static PyMethodDef pydual3_methods[] = {
     {"basis", pydual3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
     {"coeffs", pydual3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pydual3_norm, METH_NOARGS, "Norm as a Python float."},
+    {"lpow", pydual3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},
+    {"rpow", pydual3_rpow, METH_O, "rpow(exponent): exp(log(self) * exponent); default power."},
+    {"ipow", pydual3_ipow, METH_O, "ipow(exponent): integer power by squaring; exponent must fit signed 64 bits."},
     {"inv", pydual3_inv, METH_NOARGS, "Multiplicative inverse."},
     {"conjugate", pydual3_conjugate, METH_NOARGS, "Conjugate of the i1 part."},
     {"lmat", pydual3_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pydual3_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
-    {"minpoly", pydual3_minpoly, METH_NOARGS, "Minimal polynomial coefficients."},
+    {"minpoly", pydual3_minpoly, METH_NOARGS, "Generic minimal polynomial coefficients."},
     {"eivals", pydual3_eivals, METH_NOARGS, "Eigenvalues."},
     {"exp", pydual3_exp, METH_NOARGS, "exp."},
     {"log", pydual3_log, METH_NOARGS, "log."},
@@ -635,11 +689,27 @@ static PyType_Spec pydual3_spec = {
     .slots = pydual3_slots,
 };
 
+static void
+swap_bytes(char *p)
+{
+    int i, j;
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 4; j++) {
+            char t = p[8 * i + j];
+            p[8 * i + j] = p[8 * i + 7 - j];
+            p[8 * i + 7 - j] = t;
+        }
+    }
+}
+
 static PyObject *
 npydual3_getitem(void *data, void *arr)
 {
     dual3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return NEW_DUAL3(v);
 }
 
@@ -670,6 +740,9 @@ npydual3_setitem(PyObject *item, void *data, void *arr)
             return -1;
         }
     }
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     memcpy(data, &v, sizeof(v));
     return 0;
 }
@@ -687,17 +760,7 @@ pydual3_copyswapn(void *dst, npy_intp dstride, void *src,
     }
     if (swap) {
         for (i = 0; i < n; i++) {
-            char *p = (char *)dst + i * dstride;
-            int j;
-            for (j = 0; j < 8; j++) {
-                char *d = p + 8 * j;
-                int b;
-                for (b = 0; b < 4; b++) {
-                    char t = d[b];
-                    d[b] = d[7 - b];
-                    d[7 - b] = t;
-                }
-            }
+            swap_bytes((char *)dst + i * dstride);
         }
     }
 }
@@ -714,6 +777,9 @@ pydual3_nonzero(void *data, void *arr)
 {
     dual3 v;
     memcpy(&v, data, sizeof(v));
+    if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
+        swap_bytes((char *)&v);
+    }
     return vec8_any_nonzero(v) ? NPY_TRUE : NPY_FALSE;
 }
 
@@ -727,7 +793,7 @@ static PyArray_DescrProto pydual3_descr_proto = {
     &pydual3_arrfuncs,
 };
 
-#define DUAL3_CAST_FROM(name, type)                                       \
+#define DUAL3_CAST_FROM(name, type, convert)                                       \
     static void                                                              \
     pydual3_cast_##name(void *from, void *to, npy_intp n,                 \
                            void *fromarr, void *toarr)                       \
@@ -736,23 +802,33 @@ static PyArray_DescrProto pydual3_descr_proto = {
         dual3 *dst = (dual3 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = dual3_from_re((double)src[i]);                      \
+            dst[i] = dual3_from_re(convert(src[i]));                      \
         }                                                                    \
     }
 
-#define DUAL3_REAL_TYPES(X)                                               \
-    X(BOOL, npy_bool) X(BYTE, npy_byte) X(UBYTE, npy_ubyte)                 \
-    X(SHORT, npy_short) X(USHORT, npy_ushort) X(INT, npy_int)              \
-    X(UINT, npy_uint) X(LONG, npy_long) X(ULONG, npy_ulong)                 \
-    X(LONGLONG, npy_longlong) X(ULONGLONG, npy_ulonglong)                   \
-    X(FLOAT, npy_float) X(DOUBLE, npy_double)
+#define DUAL3_REAL_TYPES(X) \
+    X(BOOL, npy_bool, (double)) \
+    X(BYTE, npy_byte, (double)) \
+    X(UBYTE, npy_ubyte, (double)) \
+    X(SHORT, npy_short, (double)) \
+    X(USHORT, npy_ushort, (double)) \
+    X(INT, npy_int, (double)) \
+    X(UINT, npy_uint, (double)) \
+    X(LONG, npy_long, (double)) \
+    X(ULONG, npy_ulong, (double)) \
+    X(LONGLONG, npy_longlong, (double)) \
+    X(ULONGLONG, npy_ulonglong, (double)) \
+    X(HALF, npy_half, algpy_half_to_double) \
+    X(FLOAT, npy_float, (double)) \
+    X(DOUBLE, npy_double, (double)) \
+    X(LONGDOUBLE, npy_longdouble, (double))
 
 DUAL3_REAL_TYPES(DUAL3_CAST_FROM)
 
 static int
 pydual3_register_casts(void)
 {
-#define REGISTER_DUAL3_CAST(name, type)                                   \
+#define REGISTER_DUAL3_CAST(name, type, convert)                                   \
     {                                                                        \
         PyArray_Descr *from = PyArray_DescrFromType(NPY_##name);             \
         if (from == NULL) {                                                  \
@@ -859,7 +935,7 @@ pydual3_register_ufuncs(PyObject *numpy)
         pydual3_register_loop(numpy, "subtract", loop_dual3_binary, 3, 0, dual3_sub) ||
         pydual3_register_loop(numpy, "multiply", loop_dual3_binary, 3, 0, dual3_mul) ||
         pydual3_register_loop(numpy, "divide", loop_dual3_binary, 3, 0, dual3_div) ||
-        pydual3_register_loop(numpy, "power", loop_dual3_binary, 3, 0, dual3_pow) ||
+        pydual3_register_loop(numpy, "power", loop_dual3_binary, 3, 0, dual3_rpow) ||
         pydual3_register_loop(numpy, "positive", loop_dual3_unary, 2, 0, dual3_pos) ||
         pydual3_register_loop(numpy, "negative", loop_dual3_unary, 2, 0, dual3_neg) ||
         pydual3_register_loop(numpy, "conjugate", loop_dual3_unary, 2, 0, dual3_conjugate) ||

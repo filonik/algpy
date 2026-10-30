@@ -1,407 +1,526 @@
+/*
+ * Core octonion arithmetic with fixed generator squares -1.
+ *
+ * Pure C with no dependency on Python or NumPy, so that it can be reused and
+ * tested independently of the wrapper code in `_octonion.c`.
+ */
 #ifndef ALGPY_OCTONION_H
 #define ALGPY_OCTONION_H
 
-#include "../general/cayleydickson/cayleydickson3.h"
+#include <stdint.h>
+#include "../../fields/complex.h"
+#include "quaternion.h"
+#include "../../vectorspaces/vec2.h"
+#include "../../vectorspaces/vec8.h"
 
-#define ALGPY_OCTONION_N 8
+#define ALGPY_OCTONION_N ALGPY_VEC8_N
 
-typedef cayleydickson3 octonion;
+typedef vec8 octonion;
 
 static inline octonion
 octonion_make(double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
 {
-    return cayleydickson3_make(x0, x1, x2, x3, x4, x5, x6, x7);
-}
-
-static inline octonion
-octonion_from_re(double a)
-{
-    return cayleydickson3_from_re(a);
-}
-
-static inline double
-octonion_to_re(octonion a)
-{
-    return cayleydickson3_to_re(a);
-}
-
-static inline octonion
-octonion_zero(void)
-{
-    return cayleydickson3_zero();
-}
-
-static inline octonion
-octonion_one(void)
-{
-    return cayleydickson3_one();
-}
-
-static inline int
-octonion_is_real(octonion a)
-{
-    return cayleydickson3_is_real(a);
-}
-
-static inline octonion
-octonion_pos(octonion a)
-{
-    return cayleydickson3_pos(a);
-}
-
-static inline octonion
-octonion_neg(octonion a)
-{
-    return cayleydickson3_neg(a);
+    octonion result = {{x0, x1, x2, x3, x4, x5, x6, x7}};
+    return result;
 }
 
 static inline octonion
 octonion_re(octonion a)
 {
-    return cayleydickson3_re(a);
+    return octonion_make(a.data[0], 0, 0, 0, 0, 0, 0, 0);
 }
 
 static inline octonion
 octonion_im(octonion a)
 {
-    return cayleydickson3_im(a);
+    return octonion_make(0, a.data[1], a.data[2], a.data[3], a.data[4], a.data[5], a.data[6], a.data[7]);
 }
 
 static inline octonion
-octonion_conjugate(octonion a)
+octonion_from_re(double a)
 {
-    return cayleydickson3_conjugate(a);
-}
-
-static inline octonion
-octonion_add(octonion a, octonion b)
-{
-    return cayleydickson3_add(a, b);
-}
-
-static inline octonion
-octonion_sub(octonion a, octonion b)
-{
-    return cayleydickson3_sub(a, b);
-}
-
-static inline int
-octonion_equal(octonion a, octonion b)
-{
-    return cayleydickson3_equal(a, b);
-}
-
-static inline int
-octonion_not_equal(octonion a, octonion b)
-{
-    return cayleydickson3_not_equal(a, b);
-}
-
-static inline octonion
-octonion_mul(octonion a, octonion b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_mul(k, a, b);
-}
-
-static inline octonion
-octonion_div(octonion a, octonion b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_div(k, a, b);
-}
-
-static inline octonion
-octonion_pow(octonion a, octonion b)
-{
-    /* TODO: implement pow in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_pow(k, a, b);
-}
-
-static inline octonion
-octonion_inv(octonion a)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_inv(k, a);
-}
-
-static inline octonion
-octonion_square(octonion a)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_square(k, a);
-}
-
-static inline octonion
-octonion_exp(octonion a)
-{
-    /* TODO: implement exp in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_exp(k, a);
-}
-
-static inline octonion
-octonion_log(octonion a)
-{
-    /* TODO: implement log in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_log(k, a);
-}
-
-static inline octonion
-octonion_sqrt(octonion a)
-{
-    /* TODO: implement sqrt in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_sqrt(k, a);
-}
-
-static inline octonion
-octonion_cos(octonion a)
-{
-    /* TODO: implement cos in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_cos(k, a);
-}
-
-static inline octonion
-octonion_sin(octonion a)
-{
-    /* TODO: implement sin in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_sin(k, a);
-}
-
-static inline octonion
-octonion_tan(octonion a)
-{
-    /* TODO: implement tan in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_tan(k, a);
-}
-
-static inline octonion
-octonion_acos(octonion a)
-{
-    /* TODO: implement acos in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_acos(k, a);
-}
-
-static inline octonion
-octonion_asin(octonion a)
-{
-    /* TODO: implement asin in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_asin(k, a);
-}
-
-static inline octonion
-octonion_atan(octonion a)
-{
-    /* TODO: implement atan in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_atan(k, a);
-}
-
-static inline octonion
-octonion_cosh(octonion a)
-{
-    /* TODO: implement cosh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_cosh(k, a);
-}
-
-static inline octonion
-octonion_sinh(octonion a)
-{
-    /* TODO: implement sinh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_sinh(k, a);
-}
-
-static inline octonion
-octonion_tanh(octonion a)
-{
-    /* TODO: implement tanh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_tanh(k, a);
-}
-
-static inline octonion
-octonion_acosh(octonion a)
-{
-    /* TODO: implement acosh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_acosh(k, a);
-}
-
-static inline octonion
-octonion_asinh(octonion a)
-{
-    /* TODO: implement asinh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_asinh(k, a);
-}
-
-static inline octonion
-octonion_atanh(octonion a)
-{
-    /* TODO: implement atanh in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_atanh(k, a);
-}
-
-static inline octonion
-octonion_expm1(octonion a)
-{
-    /* TODO: implement expm1 in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_expm1(k, a);
-}
-
-static inline octonion
-octonion_log1p(octonion a)
-{
-    /* TODO: implement log1p in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_log1p(k, a);
-}
-
-static inline octonion
-octonion_radd(double a, octonion b)
-{
-    return cayleydickson3_radd(a, b);
-}
-
-static inline octonion
-octonion_ladd(octonion a, double b)
-{
-    return cayleydickson3_ladd(a, b);
-}
-
-static inline octonion
-octonion_rsub(double a, octonion b)
-{
-    return cayleydickson3_rsub(a, b);
-}
-
-static inline octonion
-octonion_lsub(octonion a, double b)
-{
-    return cayleydickson3_lsub(a, b);
-}
-
-static inline octonion
-octonion_rmul(double a, octonion b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_rmul(k, a, b);
-}
-
-static inline octonion
-octonion_lmul(octonion a, double b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_lmul(k, a, b);
-}
-
-static inline octonion
-octonion_rdiv(double a, octonion b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_rdiv(k, a, b);
-}
-
-static inline octonion
-octonion_ldiv(octonion a, double b)
-{
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_ldiv(k, a, b);
-}
-
-static inline octonion
-octonion_rpow(double a, octonion b)
-{
-    /* TODO: implement rpow in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_rpow(k, a, b);
-}
-
-static inline octonion
-octonion_lpow(octonion a, double b)
-{
-    /* TODO: implement lpow in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_lpow(k, a, b);
-}
-
-static inline octonion
-octonion_mix(octonion a, octonion b, double t)
-{
-    /* TODO: implement mix in the shared general algebra. */
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_mix(k, a, b, t);
+    return octonion_make(a, 0, 0, 0, 0, 0, 0, 0);
 }
 
 static inline double
-octonion_norm(octonion a)
+octonion_to_re(octonion a)
 {
-    vec3 k = {{-1, -1, -1}};
-    return sqrt(cayleydickson3_norm2(k, a));
+    return a.data[0];
+}
+
+static inline octonion
+octonion_one(void)
+{
+    return octonion_make(1, 0, 0, 0, 0, 0, 0, 0);
+}
+
+/* Fixed-parameter Cayley-Dickson product of quaternion pairs. */
+static inline octonion
+octonion_mul(octonion a, octonion b)
+{
+    if (vec8_is_real(b)) {
+        return vec8_scale(a, b.data[0]);
+    }
+    if (vec8_is_real(a)) {
+        return vec8_scale(b, a.data[0]);
+    }
+    quaternion a0 = {{a.data[0], a.data[1], a.data[2], a.data[3]}};
+    quaternion a1 = {{a.data[4], a.data[5], a.data[6], a.data[7]}};
+    quaternion b0 = {{b.data[0], b.data[1], b.data[2], b.data[3]}};
+    quaternion b1 = {{b.data[4], b.data[5], b.data[6], b.data[7]}};
+    quaternion left = vec4_sub(quaternion_mul(a0, b0),
+        quaternion_mul(quaternion_conjugate(b1), a1));
+    quaternion right = vec4_add(quaternion_mul(b1, a0),
+        quaternion_mul(a1, quaternion_conjugate(b0)));
+    return octonion_make(
+        left.data[0], left.data[1], left.data[2], left.data[3],
+        right.data[0], right.data[1], right.data[2], right.data[3]);
+}
+
+static inline void
+octonion_basis(octonion result[ALGPY_OCTONION_N])
+{
+    int i, j;
+    for (i = 0; i < ALGPY_OCTONION_N; i++) {
+            for (j = 0; j < ALGPY_OCTONION_N; j++) {
+                result[i].data[j] = i == j ? 1 : 0;
+            }
+    }
+}
+
+static inline void
+octonion_coeffs(octonion result[ALGPY_OCTONION_N * ALGPY_OCTONION_N])
+{
+    octonion basis[ALGPY_OCTONION_N];
+    int i, j;
+    octonion_basis(basis);
+    for (i = 0; i < ALGPY_OCTONION_N; i++) {
+            for (j = 0; j < ALGPY_OCTONION_N; j++) {
+                result[i * ALGPY_OCTONION_N + j] =
+                    octonion_mul(basis[i], basis[j]);
+            }
+    }
 }
 
 static inline double
 octonion_norm2(octonion a)
 {
-    vec3 k = {{-1, -1, -1}};
-    return cayleydickson3_norm2(k, a);
+    return a.data[0]*a.data[0]
+        + a.data[1]*a.data[1]
+        + a.data[2]*a.data[2]
+        + a.data[3]*a.data[3]
+        + a.data[4]*a.data[4]
+        + a.data[5]*a.data[5]
+        + a.data[6]*a.data[6]
+        + a.data[7]*a.data[7];
 }
 
-static inline void
-octonion_basis(octonion result[8])
+static inline double
+octonion_norm(octonion a)
 {
-    cayleydickson3_basis(result);
+    return sqrt(octonion_norm2(a));
 }
 
-static inline void
-octonion_coeffs(octonion result[64])
+static inline double
+octonion_vector_norm2(octonion a)
 {
-    vec3 k = {{-1, -1, -1}};
-    cayleydickson3_coeffs(k, result);
+    return a.data[1]*a.data[1]
+        + a.data[2]*a.data[2]
+        + a.data[3]*a.data[3]
+        + a.data[4]*a.data[4]
+        + a.data[5]*a.data[5]
+        + a.data[6]*a.data[6]
+        + a.data[7]*a.data[7];
+}
+
+static inline double
+octonion_vector_norm(octonion a)
+{
+    double r0 = hypot(a.data[1], a.data[2]);
+    double r1 = hypot(a.data[3], a.data[4]);
+    double r2 = hypot(a.data[5], a.data[6]);
+    return hypot(hypot(r0, r1), hypot(r2, a.data[7]));
+}
+
+static inline octonion
+octonion_conjugate(octonion a)
+{
+    return octonion_make(
+        a.data[0], -a.data[1], -a.data[2], -a.data[3],
+        -a.data[4], -a.data[5], -a.data[6], -a.data[7]);
+}
+
+static inline octonion
+octonion_inv(octonion a)
+{
+    return vec8_div_scalar(octonion_conjugate(a), octonion_norm2(a));
+}
+
+static inline octonion
+octonion_div(octonion a, octonion b)
+{
+    if (vec8_is_real(b)) {
+        return vec8_div_scalar(a, b.data[0]);
+    }
+    return octonion_mul(a, octonion_inv(b));
+}
+
+/* Lift a complex value along the input's imaginary direction. Real inputs
+ * use the first imaginary basis vector to select the principal branch. */
+static inline octonion
+octonion_complex_slice(octonion a, complex value, double radius)
+{
+    octonion result = {{0}};
+    int i;
+    result.data[0] = value.data[0];
+    if (radius == 0) {
+        result.data[1] = value.data[1];
+        return result;
+    }
+    for (i = 1; i < ALGPY_OCTONION_N; i++) {
+        result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
+    }
+    return result;
+}
+
+static inline octonion
+octonion_apply(octonion a, complex (*f)(complex))
+{
+    double radius = octonion_vector_norm(a);
+    complex value = f(complex_make(a.data[0], radius));
+    return octonion_complex_slice(a, value, radius);
+}
+
+static inline octonion
+octonion_exp(octonion a)
+{
+    return octonion_apply(a, complex_exp);
+}
+
+/* Principal logarithm; for negative reals the pure part points along i. */
+static inline octonion
+octonion_log(octonion a)
+{
+    return octonion_apply(a, complex_log);
+}
+
+static inline octonion
+octonion_square(octonion a)
+{
+    return octonion_make(
+        a.data[0]*a.data[0] - octonion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3],
+        2*a.data[0]*a.data[4], 2*a.data[0]*a.data[5], 2*a.data[0]*a.data[6], 2*a.data[0]*a.data[7]);
+}
+
+/* Integer powers by squaring; negative exponents invert the base once. */
+static inline octonion
+octonion_ipow(octonion a, int64_t b)
+{
+    octonion result = octonion_one();
+    uint64_t exponent = (uint64_t)b;
+    if (b == 0) {
+        return result;
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return octonion_mul(a, a);
+    }
+    if (b == -1) {
+        return octonion_inv(a);
+    }
+    if (b < 0) {
+        a = octonion_inv(a);
+        /* Unsigned negation also handles INT64_MIN. */
+        exponent = 0 - exponent;
+    }
+    while (exponent != 0) {
+        if (exponent & 1) {
+            result = octonion_mul(result, a);
+        }
+        exponent >>= 1;
+        if (exponent != 0) {
+            a = octonion_mul(a, a);
+        }
+    }
+    return result;
+}
+
+static inline octonion
+octonion_lpows(octonion a, double b)
+{
+    double radius, real;
+    complex value;
+    if (b == 0) {
+        return octonion_one();
+    }
+    if (b == 1) {
+        return a;
+    }
+    if (b == 2) {
+        return octonion_square(a);
+    }
+    radius = octonion_vector_norm(a);
+    if (radius == 0) {
+        real = pow(a.data[0], b);
+        if (!isnan(real)) {
+            return octonion_from_re(real);
+        }
+    }
+    value = complex_lpows(complex_make(a.data[0], radius), b);
+    return octonion_complex_slice(a, value, radius);
+}
+
+static inline octonion
+octonion_rpow(octonion a, octonion b)
+{
+    if (vec8_is_real(b)) {
+        return octonion_lpows(a, b.data[0]);
+    }
+    return octonion_exp(octonion_mul(octonion_log(a), b));
+}
+
+static inline octonion
+octonion_pow(octonion a, octonion b)
+{
+    return octonion_rpow(a, b);
+}
+
+static inline octonion
+octonion_lpow(octonion a, octonion b)
+{
+    return octonion_exp(octonion_mul(b, octonion_log(a)));
+}
+
+static inline octonion
+octonion_radd(double a, octonion b) {
+  return vec8_add(octonion_from_re(a), b);
+}
+
+static inline octonion
+octonion_ladd(octonion a, double b) {
+  return vec8_add(a, octonion_from_re(b));
+}
+
+static inline octonion
+octonion_rsub(double a, octonion b) {
+  return vec8_sub(octonion_from_re(a), b);
+}
+
+static inline octonion
+octonion_lsub(octonion a, double b) {
+  return vec8_sub(a, octonion_from_re(b));
+}
+
+static inline octonion
+octonion_rmul(double a, octonion b) {
+  return octonion_mul(octonion_from_re(a), b);
+}
+
+static inline octonion
+octonion_lmul(octonion a, double b) {
+  return octonion_mul(a, octonion_from_re(b));
+}
+
+static inline octonion
+octonion_rdiv(double a, octonion b) {
+  return octonion_div(octonion_from_re(a), b);
+}
+
+static inline octonion
+octonion_ldiv(octonion a, double b) {
+  return octonion_div(a, octonion_from_re(b));
+}
+
+static inline octonion
+octonion_rpows(double a, octonion b) {
+  return octonion_rpow(octonion_from_re(a), b);
+}
+
+static inline octonion
+octonion_mix(octonion a, octonion b, double t)
+{
+    octonion delta = octonion_mul(octonion_inv(a), b);
+    return octonion_mul(a, octonion_lpows(delta, t));
 }
 
 static inline void
 octonion_minpoly(octonion a, double result[3])
 {
-    vec3 k = {{-1, -1, -1}};
-    cayleydickson3_minpoly(k, a, result);
+    result[0] = octonion_norm2(a);
+    result[1] = -2 * a.data[0];
+    result[2] = 1;
 }
 
+/*
+ * Eigenvalues x0 -/+ sqrt(-|v|^2) of the octonion, as complex numbers
+ * stored in a vec2 (data[0] = real part, data[1] = imaginary part).
+ * Always a conjugate pair; real octonions give a double eigenvalue.
+ */
 static inline void
 octonion_eivals(octonion a, complex result[2])
 {
-    vec3 k = {{-1, -1, -1}};
-    cayleydickson3_eivals(k, a, result);
+    double vn = octonion_vector_norm(a);
+    result[0] = complex_make(a.data[0], -vn);
+    result[1] = complex_make(a.data[0], +vn);
+}
+
+/* Common algebra API. */
+static inline octonion
+octonion_zero(void)
+{
+    return vec8_zero();
+}
+
+static inline int
+octonion_is_real(octonion a)
+{
+    return vec8_is_real(a);
+}
+
+static inline octonion
+octonion_pos(octonion a)
+{
+    return vec8_pos(a);
+}
+
+static inline octonion
+octonion_neg(octonion a)
+{
+    return vec8_neg(a);
+}
+
+static inline octonion
+octonion_add(octonion a, octonion b)
+{
+    return vec8_add(a, b);
+}
+
+static inline octonion
+octonion_sub(octonion a, octonion b)
+{
+    return vec8_sub(a, b);
+}
+
+static inline int
+octonion_equal(octonion a, octonion b)
+{
+    return vec8_all_eq(a, b);
+}
+
+static inline int
+octonion_not_equal(octonion a, octonion b)
+{
+    return !octonion_equal(a, b);
+}
+
+static inline octonion
+octonion_sqrt(octonion a)
+{
+    return octonion_apply(a, complex_sqrt);
+}
+
+static inline octonion
+octonion_cos(octonion a)
+{
+    return octonion_apply(a, complex_cos);
+}
+
+static inline octonion
+octonion_sin(octonion a)
+{
+    return octonion_apply(a, complex_sin);
+}
+
+static inline octonion
+octonion_tan(octonion a)
+{
+    return octonion_apply(a, complex_tan);
+}
+
+static inline octonion
+octonion_acos(octonion a)
+{
+    return octonion_apply(a, complex_acos);
+}
+
+static inline octonion
+octonion_asin(octonion a)
+{
+    return octonion_apply(a, complex_asin);
+}
+
+static inline octonion
+octonion_atan(octonion a)
+{
+    return octonion_apply(a, complex_atan);
+}
+
+static inline octonion
+octonion_cosh(octonion a)
+{
+    return octonion_apply(a, complex_cosh);
+}
+
+static inline octonion
+octonion_sinh(octonion a)
+{
+    return octonion_apply(a, complex_sinh);
+}
+
+static inline octonion
+octonion_tanh(octonion a)
+{
+    return octonion_apply(a, complex_tanh);
+}
+
+static inline octonion
+octonion_acosh(octonion a)
+{
+    return octonion_apply(a, complex_acosh);
+}
+
+static inline octonion
+octonion_asinh(octonion a)
+{
+    return octonion_apply(a, complex_asinh);
+}
+
+static inline octonion
+octonion_atanh(octonion a)
+{
+    return octonion_apply(a, complex_atanh);
+}
+
+
+
+static inline octonion
+octonion_expm1(octonion a)
+{
+    return octonion_apply(a, complex_expm1);
+}
+
+static inline octonion
+octonion_log1p(octonion a)
+{
+    return octonion_apply(a, complex_log1p);
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
- * With C[i,j,k] the k-th coefficient of e_i*e_j:
- * L(a)[k,j] = sum_i a[i]*C[i,j,k], R(a)[i,k] = sum_j a[j]*C[i,j,k]. */
+ * Column j of lmat(a) contains a*e_j; row i of rmat(a) contains e_i*a. */
 static inline void
 octonion_lmat(octonion a, double result[ALGPY_OCTONION_N*ALGPY_OCTONION_N])
 {
-    octonion coeffs[ALGPY_OCTONION_N * ALGPY_OCTONION_N];
-    int row, col, i;
-    octonion_coeffs(coeffs);
-    for (row = 0; row < ALGPY_OCTONION_N; row++) {
-        for (col = 0; col < ALGPY_OCTONION_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_OCTONION_N; i++) {
-                value += a.data[i] * coeffs[i * ALGPY_OCTONION_N + col].data[row];
-            }
-            result[row * ALGPY_OCTONION_N + col] = value;
+    octonion basis = {{0}};
+    octonion product;
+    int row, col;
+    for (col = 0; col < ALGPY_OCTONION_N; col++) {
+        basis.data[col] = 1;
+        product = octonion_mul(a, basis);
+        basis.data[col] = 0;
+        for (row = 0; row < ALGPY_OCTONION_N; row++) {
+            result[row * ALGPY_OCTONION_N + col] = product.data[row];
         }
     }
 }
@@ -409,16 +528,15 @@ octonion_lmat(octonion a, double result[ALGPY_OCTONION_N*ALGPY_OCTONION_N])
 static inline void
 octonion_rmat(octonion a, double result[ALGPY_OCTONION_N*ALGPY_OCTONION_N])
 {
-    octonion coeffs[ALGPY_OCTONION_N * ALGPY_OCTONION_N];
-    int row, col, i;
-    octonion_coeffs(coeffs);
+    octonion basis = {{0}};
+    octonion product;
+    int row, col;
     for (row = 0; row < ALGPY_OCTONION_N; row++) {
+        basis.data[row] = 1;
+        product = octonion_mul(basis, a);
+        basis.data[row] = 0;
         for (col = 0; col < ALGPY_OCTONION_N; col++) {
-            double value = 0;
-            for (i = 0; i < ALGPY_OCTONION_N; i++) {
-                value += a.data[i] * coeffs[row * ALGPY_OCTONION_N + i].data[col];
-            }
-            result[row * ALGPY_OCTONION_N + col] = value;
+            result[row * ALGPY_OCTONION_N + col] = product.data[col];
         }
     }
 }
