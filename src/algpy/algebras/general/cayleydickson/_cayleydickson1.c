@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "cayleydickson1.h"
 
@@ -76,7 +77,7 @@ cd1_from_object(Info *info, PyObject *o, cayleydickson1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = cayleydickson1_make(d, 0);
+        *out = cayleydickson1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -90,7 +91,7 @@ pycd1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &x, &y)) {
         return NULL;
     }
-    return cd1_from_value(type, cayleydickson1_make(x, y));
+    return cd1_from_value(type, cayleydickson1_make((const double[]){x, y}));
 }
 
 static PyObject *
@@ -248,7 +249,7 @@ pycd1_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 static PyObject *
 pycd1_one(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return cd1_from_value((PyTypeObject *)cls, cayleydickson1_make(1, 0));
+    return cd1_from_value((PyTypeObject *)cls, cayleydickson1_make((const double[]){1, 0}));
 }
 
 static PyObject *
@@ -358,6 +359,23 @@ pycd1_basis(PyObject *cls, PyObject *Py_UNUSED(args))
         return NULL;
     }
     cayleydickson1_basis((cayleydickson1 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
+pycd1_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    cayleydickson1_gens((cayleydickson1 *)PyArray_DATA(arr));
     return (PyObject *)arr;
 }
 
@@ -604,7 +622,10 @@ pycd1_imag(PyObject *self, void *closure)
     return pycd1_im(self, NULL);
 }
 
+static PyObject *pycd1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycd1_getset[] = {
+    {"grade", pycd1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycd1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycd1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -734,6 +755,27 @@ pycd1_ipow(PyObject *self, PyObject *arg)
     return cd1_from_value(Py_TYPE(self), cayleydickson1_ipow(info->k, ((PyCD1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycd1_grade(PyObject *self, Py_ssize_t k)
+{
+    cayleydickson1 v = ((PyCD1 *)self)->v;
+    switch (k) {
+        case 0:
+            return cd1_from_value(Py_TYPE(self), cayleydickson1_grade0(v));
+        case 1:
+            return cd1_from_value(Py_TYPE(self), cayleydickson1_grade1(v));
+        default:
+            return cd1_from_value(Py_TYPE(self), cayleydickson1_zero());
+    }
+}
+
+static PyObject *
+pycd1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycd1_grade, 2);
+}
+
 static PyMethodDef pycd1_methods[] = {
     {"to_float", (PyCFunction)pycd1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycd1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -775,6 +817,7 @@ static PyMethodDef pycd1_methods[] = {
     {"zero", pycd1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycd1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycd1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycd1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycd1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycd1_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycd1_conjugate, METH_NOARGS, "Conjugate."},
@@ -958,7 +1001,7 @@ npycd1_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = cayleydickson1_make(d[0], d[1]);
+        v = cayleydickson1_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1022,7 +1065,7 @@ typedef struct { char c; cayleydickson1 v; } align_test;
         cayleydickson1 *dst = (cayleydickson1 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = cayleydickson1_make(convert(src[i]), 0);                \
+            dst[i] = cayleydickson1_make((const double[]){convert(src[i]), 0});                \
         }                                                                  \
     }
 
@@ -1410,7 +1453,7 @@ cd1_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = cd1_from_value((PyTypeObject *)type, cayleydickson1_make(x, y));
+    res = cd1_from_value((PyTypeObject *)type, cayleydickson1_make((const double[]){x, y}));
     Py_DECREF(type);
     return res;
 }

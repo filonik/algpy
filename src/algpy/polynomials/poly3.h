@@ -44,22 +44,22 @@ poly3_coeffs_to_roots(const double p[ALGPY_POLY3_N+1], complex result[ALGPY_POLY
         double s = r == 0 ? 0 : -u/r;
         double re = -(r+s)/2 - shift;
         double im = sqrt(3.0)*(r-s)/2;
-        result[0] = complex_make(r+s-shift, 0);
-        result[1] = complex_make(re, im);
-        result[2] = complex_make(re, -im);
+        result[0] = complex_make((const double[]){r+s-shift, 0});
+        result[1] = complex_make((const double[]){re, im});
+        result[2] = complex_make((const double[]){re, -im});
     }
     else if (d == 0) {
         double r = cbrt(-v);
-        result[0] = complex_make(2*r-shift, 0);
-        result[1] = result[2] = complex_make(-r-shift, 0);
+        result[0] = complex_make((const double[]){2*r-shift, 0});
+        result[1] = result[2] = complex_make((const double[]){-r-shift, 0});
     }
     else {
         double r = sqrt(-u);
         double theta = acos(fmax(-1, fmin(1, -v/(r*r*r))))/3;
         double x = r*cos(theta), y = sqrt(3.0)*r*sin(theta);
-        result[0] = complex_make(2*x-shift, 0);
-        result[1] = complex_make(-x-y-shift, 0);
-        result[2] = complex_make(-x+y-shift, 0);
+        result[0] = complex_make((const double[]){2*x-shift, 0});
+        result[1] = complex_make((const double[]){-x-y-shift, 0});
+        result[2] = complex_make((const double[]){-x+y-shift, 0});
     }
     /* One Newton correction removes the final rounding error of the closed
      * formula at simple real roots. Skip multiple roots, where division by

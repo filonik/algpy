@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "dual2.h"
 
@@ -53,7 +54,7 @@ dual2_from_object(PyObject *o, dual2 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = dual2_make(d, 0, 0, 0);
+        *out = dual2_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -68,7 +69,7 @@ pydual2_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return PyDual2_FromValue(type, dual2_make(w, x, y, z));
+    return PyDual2_FromValue(type, dual2_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -323,6 +324,21 @@ pydual2_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pydual2_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_dual2);
+    dual2 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (dual2 *)PyArray_DATA(arr);
+    dual2_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pydual2_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {4, 4};
@@ -459,7 +475,10 @@ pydual2_imag(PyObject *self, void *closure)
     return pydual2_im(self, NULL);
 }
 
+static PyObject *pydual2_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pydual2_getset[] = {
+    {"grade", pydual2_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pydual2_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pydual2_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -565,6 +584,29 @@ pydual2_ipow(PyObject *self, PyObject *arg)
     return NEW_DUAL2(dual2_ipow(((PyDual2 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pydual2_grade(PyObject *self, Py_ssize_t k)
+{
+    dual2 v = ((PyDual2 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyDual2_FromValue(Py_TYPE(self), dual2_grade0(v));
+        case 1:
+            return PyDual2_FromValue(Py_TYPE(self), dual2_grade1(v));
+        case 2:
+            return PyDual2_FromValue(Py_TYPE(self), dual2_grade2(v));
+        default:
+            return PyDual2_FromValue(Py_TYPE(self), dual2_zero());
+    }
+}
+
+static PyObject *
+pydual2_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pydual2_grade, 3);
+}
+
 static PyMethodDef pydual2_methods[] = {
     {"to_float", (PyCFunction)pydual2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pydual2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -599,6 +641,7 @@ static PyMethodDef pydual2_methods[] = {
     {"zero", pydual2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pydual2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pydual2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pydual2_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pydual2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pydual2_norm2, METH_NOARGS, "Squared norm (a dual pair)."},
     {"norm4", pydual2_norm4, METH_NOARGS, "Fourth power of the norm."},

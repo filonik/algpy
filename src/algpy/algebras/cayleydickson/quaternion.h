@@ -7,6 +7,7 @@
 #ifndef ALGPY_QUATERNION_H
 #define ALGPY_QUATERNION_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../fields/complex.h"
 #include "../../vectorspaces/vec2.h"
@@ -17,28 +18,29 @@
 typedef vec4 quaternion;
 
 static inline quaternion
-quaternion_make(double x0, double x1, double x2, double x3)
+quaternion_make(const double coeffs[ALGPY_QUATERNION_N])
 {
-    quaternion result = {{x0, x1, x2, x3}};
+    quaternion result;
+    memcpy(result.data, coeffs, sizeof(result.data));
     return result;
 }
 
 static inline quaternion
 quaternion_re(quaternion a)
 {
-    return quaternion_make(a.data[0], 0, 0, 0);
+    return quaternion_make((const double[]){a.data[0], 0, 0, 0});
 }
 
 static inline quaternion
 quaternion_im(quaternion a)
 {
-    return quaternion_make(0, a.data[1], a.data[2], a.data[3]);
+    return quaternion_make((const double[]){0, a.data[1], a.data[2], a.data[3]});
 }
 
 static inline quaternion
 quaternion_from_re(double a)
 {
-    return quaternion_make(a, 0, 0, 0);
+    return quaternion_make((const double[ALGPY_QUATERNION_N]){a});
 }
 
 static inline double
@@ -50,7 +52,7 @@ quaternion_to_re(quaternion a)
 static inline quaternion
 quaternion_one(void)
 {
-    return quaternion_make(1, 0, 0, 0);
+    return quaternion_make((const double[ALGPY_QUATERNION_N]){[0] = 1});
 }
 
 /* Hamilton product */
@@ -63,7 +65,7 @@ quaternion_mul(quaternion a, quaternion b)
     if (vec4_is_real(a)) {
         return vec4_scale(b, a.data[0]);
     }
-    return quaternion_make(
+    return quaternion_make((const double[]){
         a.data[0] * b.data[0] - a.data[1] * b.data[1] -
             a.data[2] * b.data[2] - a.data[3] * b.data[3],
         a.data[0] * b.data[1] + a.data[1] * b.data[0] +
@@ -71,7 +73,7 @@ quaternion_mul(quaternion a, quaternion b)
         a.data[0] * b.data[2] - a.data[1] * b.data[3] +
             a.data[2] * b.data[0] + a.data[3] * b.data[1],
         a.data[0] * b.data[3] + a.data[1] * b.data[2] -
-            a.data[2] * b.data[1] + a.data[3] * b.data[0]);
+            a.data[2] * b.data[1] + a.data[3] * b.data[0]});
 }
 
 static inline void
@@ -83,6 +85,13 @@ quaternion_basis(quaternion result[ALGPY_QUATERNION_N])
                 result[i].data[j] = i == j ? 1 : 0;
             }
     }
+}
+
+static inline void
+quaternion_gens(quaternion result[2])
+{
+    result[0] = quaternion_make((const double[ALGPY_QUATERNION_N]){[1] = 1});
+    result[1] = quaternion_make((const double[ALGPY_QUATERNION_N]){[2] = 1});
 }
 
 static inline void
@@ -127,7 +136,7 @@ quaternion_vector_norm(quaternion a)
 static inline quaternion
 quaternion_conjugate(quaternion a)
 {
-    return quaternion_make(a.data[0], -a.data[1], -a.data[2], -a.data[3]);
+    return quaternion_make((const double[]){a.data[0], -a.data[1], -a.data[2], -a.data[3]});
 }
 
 static inline quaternion
@@ -167,7 +176,7 @@ static inline quaternion
 quaternion_apply(quaternion a, complex (*f)(complex))
 {
     double radius = quaternion_vector_norm(a);
-    complex value = f(complex_make(a.data[0], radius));
+    complex value = f(complex_make((const double[]){a.data[0], radius}));
     return quaternion_complex_slice(a, value, radius);
 }
 
@@ -187,8 +196,8 @@ quaternion_log(quaternion a)
 static inline quaternion
 quaternion_square(quaternion a)
 {
-    return quaternion_make(
-        a.data[0]*a.data[0] - quaternion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3]);
+    return quaternion_make((const double[]){
+        a.data[0]*a.data[0] - quaternion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3]});
 }
 
 /* Integer powers by squaring; negative exponents invert the base once. */
@@ -247,7 +256,7 @@ quaternion_lpows(quaternion a, double b)
             return quaternion_from_re(real);
         }
     }
-    value = complex_lpows(complex_make(a.data[0], radius), b);
+    value = complex_lpows(complex_make((const double[]){a.data[0], radius}), b);
     return quaternion_complex_slice(a, value, radius);
 }
 
@@ -341,8 +350,8 @@ static inline void
 quaternion_eivals(quaternion a, complex result[2])
 {
     double vn = quaternion_vector_norm(a);
-    result[0] = complex_make(a.data[0], -vn);
-    result[1] = complex_make(a.data[0], +vn);
+    result[0] = complex_make((const double[]){a.data[0], -vn});
+    result[1] = complex_make((const double[]){a.data[0], +vn});
 }
 
 /* Common algebra API. */
@@ -520,5 +529,27 @@ quaternion_rmat(quaternion a, double result[ALGPY_QUATERNION_N*ALGPY_QUATERNION_
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline quaternion
+quaternion_grade0(quaternion a)
+{
+    const double *x = a.data;
+    return quaternion_make((const double[]){x[0], 0, 0, 0});
+}
+
+static inline quaternion
+quaternion_grade1(quaternion a)
+{
+    const double *x = a.data;
+    return quaternion_make((const double[]){0, x[1], x[2], 0});
+}
+
+static inline quaternion
+quaternion_grade2(quaternion a)
+{
+    const double *x = a.data;
+    return quaternion_make((const double[]){0, 0, 0, x[3]});
+}
 
 #endif /* ALGPY_QUATERNION_H */

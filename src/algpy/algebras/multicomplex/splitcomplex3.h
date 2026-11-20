@@ -1,6 +1,7 @@
 #ifndef ALGPY_SPLITCOMPLEX3_H
 #define ALGPY_SPLITCOMPLEX3_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../vectorspaces/vec8.h"
 #include "splitcomplex2.h"
@@ -10,9 +11,10 @@
 typedef vec8 splitcomplex3;
 
 static inline splitcomplex3
-splitcomplex3_make(double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
+splitcomplex3_make(const double coeffs[ALGPY_SPLITCOMPLEX3_N])
 {
-    splitcomplex3 result = {{x0, x1, x2, x3, x4, x5, x6, x7}};
+    splitcomplex3 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
     return result;
 }
 
@@ -20,19 +22,19 @@ splitcomplex3_make(double x0, double x1, double x2, double x3, double x4, double
 static inline splitcomplex3
 splitcomplex3_apply(splitcomplex3 a, splitcomplex2 (*f)(splitcomplex2))
 {
-    splitcomplex2 p = splitcomplex2_make(
+    splitcomplex2 p = splitcomplex2_make((const double[]){
         a.data[0] + a.data[4],
         a.data[1] + a.data[5],
         a.data[2] + a.data[6],
-        a.data[3] + a.data[7]);
-    splitcomplex2 q = splitcomplex2_make(
+        a.data[3] + a.data[7]});
+    splitcomplex2 q = splitcomplex2_make((const double[]){
         a.data[0] - a.data[4],
         a.data[1] - a.data[5],
         a.data[2] - a.data[6],
-        a.data[3] - a.data[7]);
+        a.data[3] - a.data[7]});
     p = f(p);
     q = f(q);
-    return splitcomplex3_make(
+    return splitcomplex3_make((const double[]){
         (p.data[0] + q.data[0]) / 2,
         (p.data[1] + q.data[1]) / 2,
         (p.data[2] + q.data[2]) / 2,
@@ -40,13 +42,13 @@ splitcomplex3_apply(splitcomplex3 a, splitcomplex2 (*f)(splitcomplex2))
         (p.data[0] - q.data[0]) / 2,
         (p.data[1] - q.data[1]) / 2,
         (p.data[2] - q.data[2]) / 2,
-        (p.data[3] - q.data[3]) / 2);
+        (p.data[3] - q.data[3]) / 2});
 }
 
 static inline splitcomplex3
 splitcomplex3_from_re(double a)
 {
-    return splitcomplex3_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return splitcomplex3_make((const double[ALGPY_SPLITCOMPLEX3_N]){a});
 }
 
 static inline double
@@ -100,7 +102,7 @@ splitcomplex3_im(splitcomplex3 a)
 static inline splitcomplex3
 splitcomplex3_conjugate(splitcomplex3 a)
 {
-    return splitcomplex3_make(a.data[0], a.data[1], a.data[2], a.data[3], -a.data[4], -a.data[5], -a.data[6], -a.data[7]);
+    return splitcomplex3_make((const double[]){a.data[0], a.data[1], a.data[2], a.data[3], -a.data[4], -a.data[5], -a.data[6], -a.data[7]});
 }
 
 static inline splitcomplex3
@@ -136,21 +138,24 @@ splitcomplex3_mul(splitcomplex3 a, splitcomplex3 b)
     if (splitcomplex3_is_real(a)) {
         return vec8_scale(b, a.data[0]);
     }
-    splitcomplex2 u = splitcomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    splitcomplex2 v = splitcomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
-    splitcomplex2 s = splitcomplex2_make(b.data[0], b.data[1], b.data[2], b.data[3]);
-    splitcomplex2 t = splitcomplex2_make(b.data[4], b.data[5], b.data[6], b.data[7]);
+    splitcomplex2 u = splitcomplex2_make(a.data);
+    splitcomplex2 v = splitcomplex2_make(a.data + 4);
+    splitcomplex2 s = splitcomplex2_make(b.data);
+    splitcomplex2 t = splitcomplex2_make(b.data + 4);
     splitcomplex2 lo = splitcomplex2_add(splitcomplex2_mul(u, s), splitcomplex2_mul(v, t));
     splitcomplex2 hi = splitcomplex2_add(splitcomplex2_mul(u, t), splitcomplex2_mul(v, s));
-    return splitcomplex3_make(lo.data[0], lo.data[1], lo.data[2], lo.data[3], hi.data[0], hi.data[1], hi.data[2], hi.data[3]);
+    splitcomplex3 result;
+    memcpy(result.data, lo.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_SPLITCOMPLEX3_N/2, hi.data, sizeof(result.data)/2);
+    return result;
 }
 
 /* Recursive norm: (u + v*e)*(u - v*e) = u*u - v*v. */
 static inline splitcomplex2
 splitcomplex3_norm2(splitcomplex3 a)
 {
-    splitcomplex2 u = splitcomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    splitcomplex2 v = splitcomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    splitcomplex2 u = splitcomplex2_make(a.data);
+    splitcomplex2 v = splitcomplex2_make(a.data + 4);
     return splitcomplex2_sub(splitcomplex2_mul(u, u), splitcomplex2_mul(v, v));
 }
 
@@ -176,11 +181,14 @@ static inline splitcomplex3
 splitcomplex3_inv(splitcomplex3 a)
 {
     splitcomplex2 ninv = splitcomplex2_inv(splitcomplex3_norm2(a));
-    splitcomplex2 u = splitcomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    splitcomplex2 v = splitcomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    splitcomplex2 u = splitcomplex2_make(a.data);
+    splitcomplex2 v = splitcomplex2_make(a.data + 4);
     splitcomplex2 lo = splitcomplex2_mul(u, ninv);
     splitcomplex2 hi = splitcomplex2_mul(splitcomplex2_neg(v), ninv);
-    return splitcomplex3_make(lo.data[0], lo.data[1], lo.data[2], lo.data[3], hi.data[0], hi.data[1], hi.data[2], hi.data[3]);
+    splitcomplex3 result;
+    memcpy(result.data, lo.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_SPLITCOMPLEX3_N/2, hi.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline splitcomplex3
@@ -248,29 +256,29 @@ splitcomplex3_ipow(splitcomplex3 a, int64_t b)
 static inline splitcomplex3
 splitcomplex3_rpow(splitcomplex3 a, splitcomplex3 b)
 {
-    splitcomplex2 ap = splitcomplex2_make(
+    splitcomplex2 ap = splitcomplex2_make((const double[]){
         a.data[0] + a.data[4],
         a.data[1] + a.data[5],
         a.data[2] + a.data[6],
-        a.data[3] + a.data[7]);
-    splitcomplex2 aq = splitcomplex2_make(
+        a.data[3] + a.data[7]});
+    splitcomplex2 aq = splitcomplex2_make((const double[]){
         a.data[0] - a.data[4],
         a.data[1] - a.data[5],
         a.data[2] - a.data[6],
-        a.data[3] - a.data[7]);
-    splitcomplex2 bp = splitcomplex2_make(
+        a.data[3] - a.data[7]});
+    splitcomplex2 bp = splitcomplex2_make((const double[]){
         b.data[0] + b.data[4],
         b.data[1] + b.data[5],
         b.data[2] + b.data[6],
-        b.data[3] + b.data[7]);
-    splitcomplex2 bq = splitcomplex2_make(
+        b.data[3] + b.data[7]});
+    splitcomplex2 bq = splitcomplex2_make((const double[]){
         b.data[0] - b.data[4],
         b.data[1] - b.data[5],
         b.data[2] - b.data[6],
-        b.data[3] - b.data[7]);
+        b.data[3] - b.data[7]});
     splitcomplex2 p = splitcomplex2_rpow(ap, bp);
     splitcomplex2 q = splitcomplex2_rpow(aq, bq);
-    return splitcomplex3_make(
+    return splitcomplex3_make((const double[]){
         (p.data[0] + q.data[0]) / 2,
         (p.data[1] + q.data[1]) / 2,
         (p.data[2] + q.data[2]) / 2,
@@ -278,7 +286,7 @@ splitcomplex3_rpow(splitcomplex3 a, splitcomplex3 b)
         (p.data[0] - q.data[0]) / 2,
         (p.data[1] - q.data[1]) / 2,
         (p.data[2] - q.data[2]) / 2,
-        (p.data[3] - q.data[3]) / 2);
+        (p.data[3] - q.data[3]) / 2});
 }
 
 static inline splitcomplex3
@@ -462,6 +470,14 @@ splitcomplex3_basis(splitcomplex3 result[ALGPY_SPLITCOMPLEX3_N])
 }
 
 static inline void
+splitcomplex3_gens(splitcomplex3 result[3])
+{
+    result[0] = splitcomplex3_make((const double[ALGPY_SPLITCOMPLEX3_N]){[1] = 1});
+    result[1] = splitcomplex3_make((const double[ALGPY_SPLITCOMPLEX3_N]){[2] = 1});
+    result[2] = splitcomplex3_make((const double[ALGPY_SPLITCOMPLEX3_N]){[4] = 1});
+}
+
+static inline void
 splitcomplex3_coeffs(splitcomplex3 result[ALGPY_SPLITCOMPLEX3_N*ALGPY_SPLITCOMPLEX3_N])
 {
     splitcomplex3 basis[ALGPY_SPLITCOMPLEX3_N];
@@ -477,16 +493,16 @@ splitcomplex3_coeffs(splitcomplex3 result[ALGPY_SPLITCOMPLEX3_N*ALGPY_SPLITCOMPL
 static inline void
 splitcomplex3_minpoly(splitcomplex3 a, double result[9])
 {
-    splitcomplex2 p = splitcomplex2_make(
+    splitcomplex2 p = splitcomplex2_make((const double[]){
         a.data[0] + a.data[4],
         a.data[1] + a.data[5],
         a.data[2] + a.data[6],
-        a.data[3] + a.data[7]);
-    splitcomplex2 q = splitcomplex2_make(
+        a.data[3] + a.data[7]});
+    splitcomplex2 q = splitcomplex2_make((const double[]){
         a.data[0] - a.data[4],
         a.data[1] - a.data[5],
         a.data[2] - a.data[6],
-        a.data[3] - a.data[7]);
+        a.data[3] - a.data[7]});
     double left[5], right[5];
     int i, j;
     splitcomplex2_minpoly(p, left);
@@ -504,16 +520,16 @@ splitcomplex3_minpoly(splitcomplex3 a, double result[9])
 static inline void
 splitcomplex3_eivals(splitcomplex3 a, complex result[8])
 {
-    splitcomplex2 p = splitcomplex2_make(
+    splitcomplex2 p = splitcomplex2_make((const double[]){
         a.data[0] + a.data[4],
         a.data[1] + a.data[5],
         a.data[2] + a.data[6],
-        a.data[3] + a.data[7]);
-    splitcomplex2 q = splitcomplex2_make(
+        a.data[3] + a.data[7]});
+    splitcomplex2 q = splitcomplex2_make((const double[]){
         a.data[0] - a.data[4],
         a.data[1] - a.data[5],
         a.data[2] - a.data[6],
-        a.data[3] - a.data[7]);
+        a.data[3] - a.data[7]});
     complex left[4], right[4];
     splitcomplex2_eivals(p, left);
     splitcomplex2_eivals(q, right);
@@ -562,5 +578,34 @@ splitcomplex3_rmat(splitcomplex3 a, double result[ALGPY_SPLITCOMPLEX3_N*ALGPY_SP
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline splitcomplex3
+splitcomplex3_grade0(splitcomplex3 a)
+{
+    const double *x = a.data;
+    return splitcomplex3_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline splitcomplex3
+splitcomplex3_grade1(splitcomplex3 a)
+{
+    const double *x = a.data;
+    return splitcomplex3_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
+}
+
+static inline splitcomplex3
+splitcomplex3_grade2(splitcomplex3 a)
+{
+    const double *x = a.data;
+    return splitcomplex3_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
+}
+
+static inline splitcomplex3
+splitcomplex3_grade3(splitcomplex3 a)
+{
+    const double *x = a.data;
+    return splitcomplex3_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
+}
 
 #endif /* ALGPY_SPLITCOMPLEX3_H */

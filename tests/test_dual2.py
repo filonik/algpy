@@ -40,7 +40,7 @@ def test_elementary_functions(algebra, name, function):
         np.testing.assert_allclose(cls.to_float(function(value)), result, rtol=3e-10, atol=3e-10)
 
 
-@pytest.mark.parametrize("offset", range(1, 3))
+@pytest.mark.parametrize("offset", range(1, 5))
 @pytest.mark.parametrize("index,name,function", [(i, name, function)
                          for i, (name, function) in enumerate(FUNCTIONS)],
                          ids=[name for name, _ in FUNCTIONS])
@@ -225,6 +225,12 @@ def test_basic_norm(common_algebra):
 def test_basic_minpoly_eivals(common_algebra):
     basic.check_minpoly_eivals(common_algebra)
 
+@pytest.mark.parametrize("parameters", [None], ids=str)
+def test_basic_gens(common_algebra, parameters):
+    if parameters is not None:
+        common_algebra.K = parameters
+    basic.check_gens(common_algebra)
+
 def test_basic_basis(common_algebra):
     basic.check_basis(common_algebra)
 
@@ -247,6 +253,9 @@ def test_api_binary_cast_broadcast_and_operator(common_algebra, name):
 
 def test_api_predicates_parts_and_inverse(common_algebra):
     api.check_predicates_parts_and_inverse(common_algebra)
+
+def test_api_grade_projection(common_algebra):
+    api.check_grade_projection(common_algebra)
 
 def test_api_norm_static_return_type(common_algebra):
     api.check_norm_static_return_type(common_algebra)

@@ -20,7 +20,7 @@ poly1_roots_to_coeffs(const complex result[ALGPY_POLY1_N], double p[ALGPY_POLY1_
 static inline void
 poly1_coeffs_to_roots(const double p[ALGPY_POLY1_N+1], complex result[ALGPY_POLY1_N])
 {
-    result[0] = complex_make(-p[0]/p[1], 0);
+    result[0] = complex_make((const double[]){-p[0]/p[1], 0});
 }
 
 #endif /* ALGPY_POLY1_H */

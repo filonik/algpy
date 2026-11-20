@@ -29,7 +29,7 @@ def interpolate(tmp_path_factory):
 int evaluate(int function, int solve, int n, double w, const double *input,
              const double *p, double *result) {
     complex nodes[4];
-    for (int i = 0; i < n; i++) nodes[i] = complex_make(input[2*i], input[2*i+1]);
+    for (int i = 0; i < n; i++) nodes[i] = complex_make(input + 2*i);
     switch (function) {
 '''+"\n".join(cases)+'''
     default: return 0;

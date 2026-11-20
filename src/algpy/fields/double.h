@@ -555,4 +555,371 @@ double_atanh_deriv4(double x)
     return 24*q*(r*r+q*q)*r;
 }
 
+/* Higher real jets for degenerate five-generator Clifford algebras. */
+static inline double
+double_exp_deriv5(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_expm1_deriv5(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_log_deriv5(double x)
+{
+    return (((((24.0/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_log1p_deriv5(double x)
+{
+    return double_log_deriv5(x + 1);
+}
+
+static inline double
+double_inv_deriv5(double x)
+{
+    return ((((((-120.0/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_square_deriv5(double x)
+{
+    (void)x;
+    return 0;
+}
+
+static inline double
+double_sqrt_deriv5(double x)
+{
+    return (((((105./32/sqrt(x))/x)/x)/x)/x);
+}
+
+static inline double
+double_sin_deriv5(double x)
+{
+    return cos(x);
+}
+
+static inline double
+double_cos_deriv5(double x)
+{
+    return -sin(x);
+}
+
+static inline double
+double_sinh_deriv5(double x)
+{
+    return cosh(x);
+}
+
+static inline double
+double_cosh_deriv5(double x)
+{
+    return sinh(x);
+}
+
+static inline double
+double_tan_deriv5(double x)
+{
+    double t = tan(x);
+    return (pow(t, 2)*(120*pow(t, 2) + 120) + 16)*double_tan_deriv1(x);
+}
+
+static inline double
+double_tanh_deriv5(double x)
+{
+    double t = tanh(x);
+    return (pow(t, 2)*(120*pow(t, 2) - 120) + 16)*double_tanh_deriv1(x);
+}
+
+static inline double
+double_asin_deriv5(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return ((((((24*t*t*t*t + 72*t*t*r*r + 9*r*r*r*r)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_asinh_deriv5(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return ((((((24*t*t*t*t - 72*t*t*r*r + 9*r*r*r*r)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acosh_deriv5(double x)
+{
+    double h = sqrt(x-1)*sqrt(x+1), r = 1/h, t = x/h;
+    return ((((((24*t*t*t*t + 72*t*t*r*r + 9*r*r*r*r)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atan_deriv5(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return (((((((120*t*t*t*t - 240*t*t*r*r + 24*r*r*r*r)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atanh_deriv5(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return (((((((120*t*t*t*t + 240*t*t*r*r + 24*r*r*r*r)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acos_deriv5(double x)
+{
+    return -double_asin_deriv5(x);
+}
+
+static inline double
+double_exp_deriv6(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_expm1_deriv6(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_log_deriv6(double x)
+{
+    return ((((((-120.0/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_log1p_deriv6(double x)
+{
+    return double_log_deriv6(x + 1);
+}
+
+static inline double
+double_inv_deriv6(double x)
+{
+    return (((((((720.0/x)/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_square_deriv6(double x)
+{
+    (void)x;
+    return 0;
+}
+
+static inline double
+double_sqrt_deriv6(double x)
+{
+    return ((((((-945./64/sqrt(x))/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_sin_deriv6(double x)
+{
+    return -sin(x);
+}
+
+static inline double
+double_cos_deriv6(double x)
+{
+    return -cos(x);
+}
+
+static inline double
+double_sinh_deriv6(double x)
+{
+    return sinh(x);
+}
+
+static inline double
+double_cosh_deriv6(double x)
+{
+    return cosh(x);
+}
+
+static inline double
+double_tan_deriv6(double x)
+{
+    double t = tan(x);
+    return (t*(pow(t, 2)*(720*pow(t, 2) + 960) + 272))*double_tan_deriv1(x);
+}
+
+static inline double
+double_tanh_deriv6(double x)
+{
+    double t = tanh(x);
+    return (t*(pow(t, 2)*(960 - 720*pow(t, 2)) - 272))*double_tanh_deriv1(x);
+}
+
+static inline double
+double_asin_deriv6(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return (((((((120*t*t*t*t*t + 600*t*t*t*r*r + 225*t*r*r*r*r)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_asinh_deriv6(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return (((((((-120*t*t*t*t*t + 600*t*t*t*r*r - 225*t*r*r*r*r)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acosh_deriv6(double x)
+{
+    double h = sqrt(x-1)*sqrt(x+1), r = 1/h, t = x/h;
+    return (((((((-120*t*t*t*t*t - 600*t*t*t*r*r - 225*t*r*r*r*r)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atan_deriv6(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return ((((((((-720*t*t*t*t*t + 2400*t*t*t*r*r - 720*t*r*r*r*r)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atanh_deriv6(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return ((((((((720*t*t*t*t*t + 2400*t*t*t*r*r + 720*t*r*r*r*r)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acos_deriv6(double x)
+{
+    return -double_asin_deriv6(x);
+}
+
+static inline double
+double_exp_deriv7(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_expm1_deriv7(double x)
+{
+    return exp(x);
+}
+
+static inline double
+double_log_deriv7(double x)
+{
+    return (((((((720.0/x)/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_log1p_deriv7(double x)
+{
+    return double_log_deriv7(x + 1);
+}
+
+static inline double
+double_inv_deriv7(double x)
+{
+    return ((((((((-5040.0/x)/x)/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_square_deriv7(double x)
+{
+    (void)x;
+    return 0;
+}
+
+static inline double
+double_sqrt_deriv7(double x)
+{
+    return (((((((10395./128/sqrt(x))/x)/x)/x)/x)/x)/x);
+}
+
+static inline double
+double_sin_deriv7(double x)
+{
+    return -cos(x);
+}
+
+static inline double
+double_cos_deriv7(double x)
+{
+    return sin(x);
+}
+
+static inline double
+double_sinh_deriv7(double x)
+{
+    return cosh(x);
+}
+
+static inline double
+double_cosh_deriv7(double x)
+{
+    return sinh(x);
+}
+
+static inline double
+double_tan_deriv7(double x)
+{
+    double t = tan(x);
+    return (pow(t, 2)*(pow(t, 2)*(5040*pow(t, 2) + 8400) + 3696) + 272)*double_tan_deriv1(x);
+}
+
+static inline double
+double_tanh_deriv7(double x)
+{
+    double t = tanh(x);
+    return (pow(t, 2)*(pow(t, 2)*(5040*pow(t, 2) - 8400) + 3696) - 272)*double_tanh_deriv1(x);
+}
+
+static inline double
+double_asin_deriv7(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return ((((((((720*t*t*t*t*t*t + 5400*t*t*t*t*r*r + 4050*t*t*r*r*r*r + 225*r*r*r*r*r*r)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_asinh_deriv7(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return ((((((((720*t*t*t*t*t*t - 5400*t*t*t*t*r*r + 4050*t*t*r*r*r*r - 225*r*r*r*r*r*r)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acosh_deriv7(double x)
+{
+    double h = sqrt(x-1)*sqrt(x+1), r = 1/h, t = x/h;
+    return ((((((((720*t*t*t*t*t*t + 5400*t*t*t*t*r*r + 4050*t*t*r*r*r*r + 225*r*r*r*r*r*r)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atan_deriv7(double x)
+{
+    double h = hypot(1,x), r = 1/h, t = x/h;
+    return (((((((((5040*t*t*t*t*t*t - 25200*t*t*t*t*r*r + 15120*t*t*r*r*r*r - 720*r*r*r*r*r*r)/h)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_atanh_deriv7(double x)
+{
+    double h = sqrt(1-x)*sqrt(1+x), r = 1/h, t = x/h;
+    return (((((((((5040*t*t*t*t*t*t + 25200*t*t*t*t*r*r + 15120*t*t*r*r*r*r + 720*r*r*r*r*r*r)/h)/h)/h)/h)/h)/h)/h)/h);
+}
+
+static inline double
+double_acos_deriv7(double x)
+{
+    return -double_asin_deriv7(x);
+}
+
 #endif /* ALGPY_DOUBLE_H */

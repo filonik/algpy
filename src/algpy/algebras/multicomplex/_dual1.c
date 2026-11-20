@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "dual1.h"
 
@@ -53,7 +54,7 @@ dual1_from_object(PyObject *o, dual1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = dual1_make(d, 0);
+        *out = dual1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -67,7 +68,7 @@ pydual1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &re, &im)) {
         return NULL;
     }
-    return PyDual1_FromValue(type, dual1_make(re, im));
+    return PyDual1_FromValue(type, dual1_make((const double[]){re, im}));
 }
 
 static PyObject *
@@ -313,6 +314,21 @@ pydual1_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pydual1_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_dual1);
+    dual1 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (dual1 *)PyArray_DATA(arr);
+    dual1_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pydual1_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {2, 2};
@@ -425,7 +441,10 @@ pydual1_imag(PyObject *self, void *closure)
     return pydual1_im(self, NULL);
 }
 
+static PyObject *pydual1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pydual1_getset[] = {
+    {"grade", pydual1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pydual1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pydual1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -531,6 +550,27 @@ pydual1_ipow(PyObject *self, PyObject *arg)
     return PyDual1_FromValue(Py_TYPE(self), dual1_ipow(((PyDual1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pydual1_grade(PyObject *self, Py_ssize_t k)
+{
+    dual1 v = ((PyDual1 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyDual1_FromValue(Py_TYPE(self), dual1_grade0(v));
+        case 1:
+            return PyDual1_FromValue(Py_TYPE(self), dual1_grade1(v));
+        default:
+            return PyDual1_FromValue(Py_TYPE(self), dual1_zero());
+    }
+}
+
+static PyObject *
+pydual1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pydual1_grade, 2);
+}
+
 static PyMethodDef pydual1_methods[] = {
     {"to_float", (PyCFunction)pydual1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pydual1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -563,6 +603,7 @@ static PyMethodDef pydual1_methods[] = {
     {"zero", pydual1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pydual1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pydual1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pydual1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pydual1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pydual1_norm2, METH_NOARGS, "Squared norm."},
     {"norm", pydual1_norm, METH_NOARGS, "Norm as a Python float."},
@@ -781,7 +822,7 @@ static PyArray_DescrProto pydual1_descr_proto = {
         dual1 *dst = (dual1 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = dual1_make(convert(src[i]), 0);                      \
+            dst[i] = dual1_make((const double[]){convert(src[i]), 0});                      \
         }                                                                    \
     }
 

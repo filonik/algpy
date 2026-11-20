@@ -28,13 +28,13 @@ poly2_coeffs_to_roots(const double p[ALGPY_POLY2_N+1], complex result[ALGPY_POLY
     double d = b*b - 4*c;
     if (d >= 0) {
         double q = -(b + copysign(sqrt(d), b))/2;
-        result[0] = complex_make(q, 0);
-        result[1] = complex_make(q == 0 ? 0 : c/q, 0);
+        result[0] = complex_make((const double[]){q, 0});
+        result[1] = complex_make((const double[]){q == 0 ? 0 : c/q, 0});
     }
     else {
         double im = sqrt(-d)/2;
-        result[0] = complex_make(-b/2, im);
-        result[1] = complex_make(-b/2, -im);
+        result[0] = complex_make((const double[]){-b/2, im});
+        result[1] = complex_make((const double[]){-b/2, -im});
     }
 }
 

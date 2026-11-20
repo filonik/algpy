@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "splitcomplex2.h"
 
@@ -53,7 +54,7 @@ splitcomplex2_from_object(PyObject *o, splitcomplex2 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = splitcomplex2_make(d, 0, 0, 0);
+        *out = splitcomplex2_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -68,7 +69,7 @@ pysplitcomplex2_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return PySplitcomplex2_FromValue(type, splitcomplex2_make(w, x, y, z));
+    return PySplitcomplex2_FromValue(type, splitcomplex2_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -330,6 +331,21 @@ pysplitcomplex2_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pysplitcomplex2_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_splitcomplex2);
+    splitcomplex2 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (splitcomplex2 *)PyArray_DATA(arr);
+    splitcomplex2_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pysplitcomplex2_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {4, 4};
@@ -430,7 +446,10 @@ pysplitcomplex2_imag(PyObject *self, void *closure)
     return pysplitcomplex2_im(self, NULL);
 }
 
+static PyObject *pysplitcomplex2_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pysplitcomplex2_getset[] = {
+    {"grade", pysplitcomplex2_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pysplitcomplex2_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pysplitcomplex2_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -536,6 +555,29 @@ pysplitcomplex2_ipow(PyObject *self, PyObject *arg)
     return NEW_SPLITCOMPLEX2(splitcomplex2_ipow(((PySplitcomplex2 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pysplitcomplex2_grade(PyObject *self, Py_ssize_t k)
+{
+    splitcomplex2 v = ((PySplitcomplex2 *)self)->v;
+    switch (k) {
+        case 0:
+            return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_grade0(v));
+        case 1:
+            return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_grade1(v));
+        case 2:
+            return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_grade2(v));
+        default:
+            return PySplitcomplex2_FromValue(Py_TYPE(self), splitcomplex2_zero());
+    }
+}
+
+static PyObject *
+pysplitcomplex2_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pysplitcomplex2_grade, 3);
+}
+
 static PyMethodDef pysplitcomplex2_methods[] = {
     {"to_float", (PyCFunction)pysplitcomplex2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysplitcomplex2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -564,6 +606,7 @@ static PyMethodDef pysplitcomplex2_methods[] = {
     {"zero", pysplitcomplex2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pysplitcomplex2_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pysplitcomplex2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pysplitcomplex2_norm2, METH_NOARGS, "Squared norm (a dual pair)."},
     {"norm4", pysplitcomplex2_norm4, METH_NOARGS, "Fourth power of the norm."},

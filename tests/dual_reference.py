@@ -25,7 +25,23 @@ def product(left, right):
 
 @lru_cache(None)
 def derivative(function, x, order):
-    return function(x) if order == 0 else reference(function, complex(x), order).real
+    if order <= 4:
+        return function(x) if order == 0 else reference(function, complex(x), order).real
+    # A wider analytic contour limits cancellation when extracting higher
+    # derivatives. Keep the circle within half the distance to a cut or pole.
+    distance = 1
+    if function in (np.log, np.sqrt, np.reciprocal):
+        distance = abs(x)
+    elif function is np.log1p:
+        distance = abs(1+x)
+    elif function in (np.arcsin, np.arccos, np.arctanh):
+        distance = 1-abs(x)
+    elif function is np.arccosh:
+        distance = x-1
+    radius = min(.5, distance/2)
+    circle = np.exp(2j*np.pi*np.arange(512)/512)
+    return (math.factorial(order)/radius**order
+            * np.mean(function(x+radius*circle)*circle**(-order))).real
 
 
 def taylor(function, coefficients, offset=0):
@@ -57,11 +73,11 @@ def c_derivatives(tmp_path_factory):
     directory = tmp_path_factory.mktemp("dual_derivatives")
     root = Path(__file__).resolve().parents[1]
     tables, cases = [], []
-    for order in range(1, 4):
+    for order in range(1, 6):
         prefix = f"dual{order}"
-        rows = ["    {"+", ".join(f"{prefix}_{name}_deriv{d}" for d in range(1, 5-order))+"}"
+        rows = ["    {"+", ".join(f"{prefix}_{name}_deriv{d}" for d in range(1, 7-order))+"}"
                 for name, _ in FUNCTIONS]
-        tables.append(f"static {prefix} (*{prefix}_derivatives[][{4-order}])({prefix}) = {{\n"
+        tables.append(f"static {prefix} (*{prefix}_derivatives[][{6-order}])({prefix}) = {{\n"
                       +",\n".join(rows)+"\n};")
         cases.append(f'''
     case {order}: {{
@@ -73,7 +89,7 @@ def c_derivatives(tmp_path_factory):
     }}''')
     source = directory/"derivatives.c"
     source.write_text('''
-#include "src/algpy/algebras/multicomplex/dual3.h"
+#include "src/algpy/algebras/multicomplex/dual5.h"
 '''+"\n".join(tables)+'''
 void evaluate(int order, int function, int derivative, const double *input, double *output)
 {

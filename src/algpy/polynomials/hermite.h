@@ -102,7 +102,7 @@ hermite_difference_stencil(int order, const complex *nodes, double w, double cen
         coefficients[2*i - 1] = odd[i - 1];
     }
     for (i = 0; i <= order; i++) {
-        complex u = complex_make((nodes[i].data[0] - center)/radius, nodes[i].data[1]/radius);
+        complex u = complex_make((const double[]){(nodes[i].data[0] - center)/radius, nodes[i].data[1]/radius});
         for (j = 1; j <= 8; j++) {
             moments[j] = vec2_add(moments[j], complex_mul(u, moments[j - 1]));
         }
@@ -135,7 +135,7 @@ hermite_difference_near(int order, const complex *nodes, double w,
     for (i = 0; i <= order; i++) {
         radius = fmax(radius, hypot(nodes[i].data[0] - center, nodes[i].data[1]));
     }
-    distance = hermite_function_distance(complex_make(w + center, 0), f);
+    distance = hermite_function_distance(complex_make((const double[]){w + center, 0}), f);
     if (!(radius > 0 && (radius < 0.01*distance ||
             (distance < 0 && radius < 0.01*fmax(1, fabs(w + center)))))) {
         return 0;
@@ -195,7 +195,7 @@ hermite_interpolate(int n, double w, const complex *input,
         nodes[nearest] = temporary;
     }
     for (i = 0; i < n; i++) {
-        complex z = complex_make(w + nodes[i].data[0], nodes[i].data[1]);
+        complex z = complex_make((const double[]){w + nodes[i].data[0], nodes[i].data[1]});
         differences[i] = z.data[1] == 0 ? complex_from_re(f(z.data[0])) : cf(z);
         if (!hermite_complex_is_finite(differences[i])) {
             return 0;
@@ -205,7 +205,7 @@ hermite_interpolate(int n, double w, const complex *input,
     for (j = 1; j < n; j++) {
         for (i = n - 1; i >= j; i--) {
             complex gap = vec2_sub(nodes[i], nodes[i - j]);
-            complex z = complex_make(w + nodes[i].data[0], nodes[i].data[1]);
+            complex z = complex_make((const double[]){w + nodes[i].data[0], nodes[i].data[1]});
             complex candidate;
             double bound;
             if (gap.data[0] == 0 && gap.data[1] == 0) {
@@ -218,8 +218,8 @@ hermite_interpolate(int n, double w, const complex *input,
                 }
                 bound = hypot(differences[i].data[0], differences[i].data[1]);
             } else if (j == 1) {
-                complex midpoint = complex_make(w + nodes[i - 1].data[0]/2 + nodes[i].data[0]/2,
-                    nodes[i - 1].data[1]/2 + nodes[i].data[1]/2);
+                complex midpoint = complex_make((const double[]){w + nodes[i - 1].data[0]/2 + nodes[i].data[0]/2,
+                    nodes[i - 1].data[1]/2 + nodes[i].data[1]/2});
                 double radius = hypot(gap.data[0], gap.data[1])/2;
                 double distance = hermite_function_distance(midpoint, f);
                 if (radius < 0.01*distance) {

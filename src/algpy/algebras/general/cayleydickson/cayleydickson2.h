@@ -3,6 +3,7 @@
 
 #define ALGPY_CAYLEYDICKSON2_N 4
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -15,28 +16,29 @@
 typedef vec4 cayleydickson2;
 
 static inline cayleydickson2
-cayleydickson2_make(double w, double x, double y, double z)
+cayleydickson2_make(const double coeffs[ALGPY_CAYLEYDICKSON2_N])
 {
-    cayleydickson2 r = {{w, x, y, z}};
-    return r;
+    cayleydickson2 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline cayleydickson2
 cayleydickson2_re(cayleydickson2 a)
 {
-    return cayleydickson2_make(a.data[0], 0, 0, 0);
+    return cayleydickson2_make((const double[]){a.data[0], 0, 0, 0});
 }
 
 static inline cayleydickson2
 cayleydickson2_im(cayleydickson2 a)
 {
-    return cayleydickson2_make(0, a.data[1], a.data[2], a.data[3]);
+    return cayleydickson2_make((const double[]){0, a.data[1], a.data[2], a.data[3]});
 }
 
 static inline cayleydickson2
 cayleydickson2_from_re(double a)
 {
-    return cayleydickson2_make(a, 0, 0, 0);
+    return cayleydickson2_make((const double[ALGPY_CAYLEYDICKSON2_N]){a});
 }
 
 static inline double
@@ -58,11 +60,11 @@ cayleydickson2_mul(vec2 h, cayleydickson2 a, cayleydickson2 b)
         return quaternion_mul(a, b);
     }
     const double *k = h.data, *x = a.data, *y = b.data;
-    return cayleydickson2_make(
+    return cayleydickson2_make((const double[]){
       x[0]*y[0] + k[0]*x[1]*y[1] + k[1]*x[2]*y[2] - k[0]*k[1]*x[3]*y[3],
       x[0]*y[1] + x[1]*y[0] - k[1]*x[2]*y[3] + k[1]*x[3]*y[2],
       x[0]*y[2] + k[0]*x[1]*y[3] + x[2]*y[0] - k[0]*x[3]*y[1],
-      x[0]*y[3] + x[1]*y[2] - x[2]*y[1] + x[3]*y[0]);
+      x[0]*y[3] + x[1]*y[2] - x[2]*y[1] + x[3]*y[0]});
 }
 
 static inline void
@@ -74,6 +76,13 @@ cayleydickson2_basis(cayleydickson2 result[ALGPY_CAYLEYDICKSON2_N])
             result[i].data[j] = i == j ? 1 : 0;
         }
     }
+}
+
+static inline void
+cayleydickson2_gens(cayleydickson2 result[2])
+{
+    result[0] = cayleydickson2_make((const double[ALGPY_CAYLEYDICKSON2_N]){[1] = 1});
+    result[1] = cayleydickson2_make((const double[ALGPY_CAYLEYDICKSON2_N]){[2] = 1});
 }
 
 static inline void
@@ -158,7 +167,7 @@ cayleydickson2_real_slice(vec2 k, complex value)
             return result;
         }
     }
-    return cayleydickson2_make(NAN, NAN, NAN, NAN);
+    return cayleydickson2_make((const double[]){NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson2
@@ -171,14 +180,14 @@ cayleydickson2_apply(vec2 k, cayleydickson2 a,
         return quaternion_apply(a, cf);
     }
     if (vec4_is_real(a)) {
-        return cayleydickson2_real_slice(k, cf(complex_make(w, 0)));
+        return cayleydickson2_real_slice(k, cf(complex_make((const double[]){w, 0})));
     }
     q = -cayleydickson2_norm2(k, cayleydickson2_im(a));
     if (q < 0) {
         complex value;
         cayleydickson2 result;
         radius = sqrt(-q);
-        value = cf(complex_make(w, radius));
+        value = cf(complex_make((const double[]){w, radius}));
         result.data[0] = value.data[0];
         for (i = 1; i < ALGPY_CAYLEYDICKSON2_N; i++) {
             result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
@@ -190,7 +199,7 @@ cayleydickson2_apply(vec2 k, cayleydickson2 a,
         plus = f(w + radius);
         minus = f(w - radius);
         if (isnan(plus) || isnan(minus)) {
-            return cayleydickson2_make(NAN, NAN, NAN, NAN);
+            return cayleydickson2_make((const double[]){NAN, NAN, NAN, NAN});
         }
         /* Native real functions have a smooth derivative limit when the
          * roots nearly coincide. Respect their nearest branch point or pole. */
@@ -240,7 +249,7 @@ cayleydickson2_apply(vec2 k, cayleydickson2 a,
             return cayleydickson2_slice(a, real, scale);
         }
     }
-    return cayleydickson2_make(NAN, NAN, NAN, NAN);
+    return cayleydickson2_make((const double[]){NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson2
@@ -321,14 +330,14 @@ cayleydickson2_lpows(vec2 k, cayleydickson2 a, double b)
         if (!isnan(real)) {
             return cayleydickson2_from_re(real);
         }
-        return cayleydickson2_real_slice(k, complex_lpows(complex_make(w, 0), b));
+        return cayleydickson2_real_slice(k, complex_lpows(complex_make((const double[]){w, 0}), b));
     }
     q = -cayleydickson2_norm2(k, cayleydickson2_im(a));
     if (q < 0) {
         complex value;
         cayleydickson2 result;
         radius = sqrt(-q);
-        value = complex_lpows(complex_make(w, radius), b);
+        value = complex_lpows(complex_make((const double[]){w, radius}), b);
         result.data[0] = value.data[0];
         for (i = 1; i < ALGPY_CAYLEYDICKSON2_N; i++) {
             result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
@@ -340,7 +349,7 @@ cayleydickson2_lpows(vec2 k, cayleydickson2 a, double b)
         plus = pow(w + radius, b);
         minus = pow(w - radius, b);
         if (isnan(plus) || isnan(minus)) {
-            return cayleydickson2_make(NAN, NAN, NAN, NAN);
+            return cayleydickson2_make((const double[]){NAN, NAN, NAN, NAN});
         }
         if (radius < 1e-8*fabs(w)/fmax(1, fabs(b))) {
             real = pow(w, b);
@@ -360,7 +369,7 @@ cayleydickson2_lpows(vec2 k, cayleydickson2 a, double b)
             return cayleydickson2_slice(a, real, scale);
         }
     }
-    return cayleydickson2_make(NAN, NAN, NAN, NAN);
+    return cayleydickson2_make((const double[]){NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson2
@@ -453,8 +462,8 @@ static inline void
 cayleydickson2_eivals(vec2 k, cayleydickson2 a, complex result[2])
 {
     complex s = complex_sqrt_real(-cayleydickson2_norm2(k, cayleydickson2_im(a)));
-    result[0] = complex_make(a.data[0] - s.data[0], -s.data[1]);
-    result[1] = complex_make(a.data[0] + s.data[0], +s.data[1]);
+    result[0] = complex_make((const double[]){a.data[0] - s.data[0], -s.data[1]});
+    result[1] = complex_make((const double[]){a.data[0] + s.data[0], +s.data[1]});
 }
 
 /* Common algebra API. */
@@ -644,5 +653,27 @@ cayleydickson2_rmat(vec2 k, cayleydickson2 a, double result[ALGPY_CAYLEYDICKSON2
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline cayleydickson2
+cayleydickson2_grade0(cayleydickson2 a)
+{
+    const double *x = a.data;
+    return cayleydickson2_make((const double[]){x[0], 0, 0, 0});
+}
+
+static inline cayleydickson2
+cayleydickson2_grade1(cayleydickson2 a)
+{
+    const double *x = a.data;
+    return cayleydickson2_make((const double[]){0, x[1], x[2], 0});
+}
+
+static inline cayleydickson2
+cayleydickson2_grade2(cayleydickson2 a)
+{
+    const double *x = a.data;
+    return cayleydickson2_make((const double[]){0, 0, 0, x[3]});
+}
 
 #endif /* ALGPY_CAYLEYDICKSON2_H */

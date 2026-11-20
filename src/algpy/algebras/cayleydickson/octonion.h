@@ -7,6 +7,7 @@
 #ifndef ALGPY_OCTONION_H
 #define ALGPY_OCTONION_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../fields/complex.h"
 #include "quaternion.h"
@@ -18,28 +19,29 @@
 typedef vec8 octonion;
 
 static inline octonion
-octonion_make(double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
+octonion_make(const double coeffs[ALGPY_OCTONION_N])
 {
-    octonion result = {{x0, x1, x2, x3, x4, x5, x6, x7}};
+    octonion result;
+    memcpy(result.data, coeffs, sizeof(result.data));
     return result;
 }
 
 static inline octonion
 octonion_re(octonion a)
 {
-    return octonion_make(a.data[0], 0, 0, 0, 0, 0, 0, 0);
+    return octonion_make((const double[]){a.data[0], 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline octonion
 octonion_im(octonion a)
 {
-    return octonion_make(0, a.data[1], a.data[2], a.data[3], a.data[4], a.data[5], a.data[6], a.data[7]);
+    return octonion_make((const double[]){0, a.data[1], a.data[2], a.data[3], a.data[4], a.data[5], a.data[6], a.data[7]});
 }
 
 static inline octonion
 octonion_from_re(double a)
 {
-    return octonion_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return octonion_make((const double[ALGPY_OCTONION_N]){a});
 }
 
 static inline double
@@ -51,7 +53,7 @@ octonion_to_re(octonion a)
 static inline octonion
 octonion_one(void)
 {
-    return octonion_make(1, 0, 0, 0, 0, 0, 0, 0);
+    return octonion_make((const double[ALGPY_OCTONION_N]){[0] = 1});
 }
 
 /* Fixed-parameter Cayley-Dickson product of quaternion pairs. */
@@ -72,9 +74,10 @@ octonion_mul(octonion a, octonion b)
         quaternion_mul(quaternion_conjugate(b1), a1));
     quaternion right = vec4_add(quaternion_mul(b1, a0),
         quaternion_mul(a1, quaternion_conjugate(b0)));
-    return octonion_make(
-        left.data[0], left.data[1], left.data[2], left.data[3],
-        right.data[0], right.data[1], right.data[2], right.data[3]);
+    octonion result;
+    memcpy(result.data, left.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_OCTONION_N/2, right.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline void
@@ -86,6 +89,14 @@ octonion_basis(octonion result[ALGPY_OCTONION_N])
                 result[i].data[j] = i == j ? 1 : 0;
             }
     }
+}
+
+static inline void
+octonion_gens(octonion result[3])
+{
+    result[0] = octonion_make((const double[ALGPY_OCTONION_N]){[1] = 1});
+    result[1] = octonion_make((const double[ALGPY_OCTONION_N]){[2] = 1});
+    result[2] = octonion_make((const double[ALGPY_OCTONION_N]){[4] = 1});
 }
 
 static inline void
@@ -145,9 +156,9 @@ octonion_vector_norm(octonion a)
 static inline octonion
 octonion_conjugate(octonion a)
 {
-    return octonion_make(
+    return octonion_make((const double[]){
         a.data[0], -a.data[1], -a.data[2], -a.data[3],
-        -a.data[4], -a.data[5], -a.data[6], -a.data[7]);
+        -a.data[4], -a.data[5], -a.data[6], -a.data[7]});
 }
 
 static inline octonion
@@ -187,7 +198,7 @@ static inline octonion
 octonion_apply(octonion a, complex (*f)(complex))
 {
     double radius = octonion_vector_norm(a);
-    complex value = f(complex_make(a.data[0], radius));
+    complex value = f(complex_make((const double[]){a.data[0], radius}));
     return octonion_complex_slice(a, value, radius);
 }
 
@@ -207,9 +218,9 @@ octonion_log(octonion a)
 static inline octonion
 octonion_square(octonion a)
 {
-    return octonion_make(
+    return octonion_make((const double[]){
         a.data[0]*a.data[0] - octonion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3],
-        2*a.data[0]*a.data[4], 2*a.data[0]*a.data[5], 2*a.data[0]*a.data[6], 2*a.data[0]*a.data[7]);
+        2*a.data[0]*a.data[4], 2*a.data[0]*a.data[5], 2*a.data[0]*a.data[6], 2*a.data[0]*a.data[7]});
 }
 
 /* Integer powers by squaring; negative exponents invert the base once. */
@@ -268,7 +279,7 @@ octonion_lpows(octonion a, double b)
             return octonion_from_re(real);
         }
     }
-    value = complex_lpows(complex_make(a.data[0], radius), b);
+    value = complex_lpows(complex_make((const double[]){a.data[0], radius}), b);
     return octonion_complex_slice(a, value, radius);
 }
 
@@ -362,8 +373,8 @@ static inline void
 octonion_eivals(octonion a, complex result[2])
 {
     double vn = octonion_vector_norm(a);
-    result[0] = complex_make(a.data[0], -vn);
-    result[1] = complex_make(a.data[0], +vn);
+    result[0] = complex_make((const double[]){a.data[0], -vn});
+    result[1] = complex_make((const double[]){a.data[0], +vn});
 }
 
 /* Common algebra API. */
@@ -541,5 +552,34 @@ octonion_rmat(octonion a, double result[ALGPY_OCTONION_N*ALGPY_OCTONION_N])
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline octonion
+octonion_grade0(octonion a)
+{
+    const double *x = a.data;
+    return octonion_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline octonion
+octonion_grade1(octonion a)
+{
+    const double *x = a.data;
+    return octonion_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
+}
+
+static inline octonion
+octonion_grade2(octonion a)
+{
+    const double *x = a.data;
+    return octonion_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
+}
+
+static inline octonion
+octonion_grade3(octonion a)
+{
+    const double *x = a.data;
+    return octonion_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
+}
 
 #endif /* ALGPY_OCTONION_H */

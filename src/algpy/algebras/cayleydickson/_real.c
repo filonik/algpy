@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "real.h"
 
@@ -68,7 +69,7 @@ pyreal_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0])) {
         return NULL;
     }
-    return PyReal_FromValue(type, real_make(d[0]));
+    return PyReal_FromValue(type, real_make(d));
 }
 
 static PyObject *
@@ -310,6 +311,21 @@ pyreal_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pyreal_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {0};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_real);
+    real *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (real *)PyArray_DATA(arr);
+    real_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pyreal_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {1, 1};
@@ -446,7 +462,10 @@ pyreal_imag(PyObject *self, void *closure)
     return pyreal_im(self, NULL);
 }
 
+static PyObject *pyreal_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pyreal_getset[] = {
+    {"grade", pyreal_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pyreal_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pyreal_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -552,6 +571,25 @@ pyreal_ipow(PyObject *self, PyObject *arg)
     return NEW_REAL(real_ipow(((PyReal *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pyreal_grade(PyObject *self, Py_ssize_t k)
+{
+    real v = ((PyReal *)self)->v;
+    switch (k) {
+        case 0:
+            return PyReal_FromValue(Py_TYPE(self), real_grade0(v));
+        default:
+            return PyReal_FromValue(Py_TYPE(self), real_zero());
+    }
+}
+
+static PyObject *
+pyreal_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pyreal_grade, 1);
+}
+
 static PyMethodDef pyreal_methods[] = {
     {"to_float", (PyCFunction)pyreal_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyreal_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -586,6 +624,7 @@ static PyMethodDef pyreal_methods[] = {
     {"zero", pyreal_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pyreal_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pyreal_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pyreal_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pyreal_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pyreal_norm, METH_NOARGS, "Norm as a Python float."},
     {"lpow", pyreal_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

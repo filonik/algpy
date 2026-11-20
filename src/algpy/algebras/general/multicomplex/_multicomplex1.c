@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #ifndef MC1_HEADER
 #define MC1_HEADER "multicomplex1.h"
@@ -93,7 +94,7 @@ mc1_from_object(Info *info, PyObject *o, multicomplex1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = multicomplex1_make(d, 0);
+        *out = multicomplex1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -107,7 +108,7 @@ pymc1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &x, &y)) {
         return NULL;
     }
-    return mc1_from_value(type, multicomplex1_make(x, y));
+    return mc1_from_value(type, multicomplex1_make((const double[]){x, y}));
 }
 
 static PyObject *
@@ -265,7 +266,7 @@ pymc1_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 static PyObject *
 pymc1_one(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return mc1_from_value((PyTypeObject *)cls, multicomplex1_make(1, 0));
+    return mc1_from_value((PyTypeObject *)cls, multicomplex1_make((const double[]){1, 0}));
 }
 
 static PyObject *
@@ -375,6 +376,23 @@ pymc1_basis(PyObject *cls, PyObject *Py_UNUSED(args))
         return NULL;
     }
     multicomplex1_basis((multicomplex1 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
+pymc1_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex1_gens((multicomplex1 *)PyArray_DATA(arr));
     return (PyObject *)arr;
 }
 
@@ -621,7 +639,10 @@ pymc1_imag(PyObject *self, void *closure)
     return pymc1_im(self, NULL);
 }
 
+static PyObject *pymc1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pymc1_getset[] = {
+    {"grade", pymc1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pymc1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pymc1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -751,6 +772,27 @@ pymc1_ipow(PyObject *self, PyObject *arg)
     return mc1_from_value(Py_TYPE(self), multicomplex1_ipow(info->k, ((PyMC1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pymc1_grade(PyObject *self, Py_ssize_t k)
+{
+    multicomplex1 v = ((PyMC1 *)self)->v;
+    switch (k) {
+        case 0:
+            return mc1_from_value(Py_TYPE(self), multicomplex1_grade0(v));
+        case 1:
+            return mc1_from_value(Py_TYPE(self), multicomplex1_grade1(v));
+        default:
+            return mc1_from_value(Py_TYPE(self), multicomplex1_zero());
+    }
+}
+
+static PyObject *
+pymc1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pymc1_grade, 2);
+}
+
 static PyMethodDef pymc1_methods[] = {
     {"to_float", (PyCFunction)pymc1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pymc1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -792,6 +834,7 @@ static PyMethodDef pymc1_methods[] = {
     {"zero", pymc1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pymc1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pymc1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pymc1_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pymc1_conjugate, METH_NOARGS, "Conjugate."},
@@ -975,7 +1018,7 @@ npymc1_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = multicomplex1_make(d[0], d[1]);
+        v = multicomplex1_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1039,7 +1082,7 @@ typedef struct { char c; multicomplex1 v; } align_test;
         multicomplex1 *dst = (multicomplex1 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = multicomplex1_make(convert(src[i]), 0);                \
+            dst[i] = multicomplex1_make((const double[]){convert(src[i]), 0});                \
         }                                                                  \
     }
 
@@ -1427,7 +1470,7 @@ mc1_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = mc1_from_value((PyTypeObject *)type, multicomplex1_make(x, y));
+    res = mc1_from_value((PyTypeObject *)type, multicomplex1_make((const double[]){x, y}));
     Py_DECREF(type);
     return res;
 }

@@ -100,7 +100,8 @@ def check_standalone_specialization_header(name, size, tmp_path):
 #include "src/algpy/algebras/cayleydickson/{name}.h"
 #include <assert.h>
 #if defined(ALGPY_CAYLEYDICKSON1_H) || defined(ALGPY_CAYLEYDICKSON2_H) || \\
-    defined(ALGPY_CAYLEYDICKSON3_H) || defined(ALGPY_CAYLEYDICKSON4_H)
+    defined(ALGPY_CAYLEYDICKSON3_H) || defined(ALGPY_CAYLEYDICKSON4_H) || \\
+    defined(ALGPY_CAYLEYDICKSON5_H)
 #error Specializations must not include the general Cayley-Dickson headers
 #endif
 static complex polynomial(complex a) {{

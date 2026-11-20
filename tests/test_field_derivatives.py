@@ -18,9 +18,10 @@ def derivatives(tmp_path_factory):
     root = Path(__file__).resolve().parents[1]
     tables = []
     for field in ["double", "complex"]:
-        rows = ["    {"+", ".join(f"{field}_{name}_deriv{n}" for n in range(1, 5))+"}"
+        maximum = 7 if field == "double" else 4
+        rows = ["    {"+", ".join(f"{field}_{name}_deriv{n}" for n in range(1, maximum+1))+"}"
                 for name, _ in FUNCTIONS]
-        tables.append(f"static {field} (*{field}_derivatives[][4])({field}) = {{\n"
+        tables.append(f"static {field} (*{field}_derivatives[][{maximum}])({field}) = {{\n"
                       +",\n".join(rows)+"\n};")
     source = directory/"derivatives.c"
     source.write_text('''
@@ -33,7 +34,7 @@ double evaluate_double(int function, int order, double x)
 }
 void evaluate_complex(int function, int order, double x, double y, double out[2])
 {
-    complex result = complex_derivatives[function][order-1](complex_make(x, y));
+    complex result = complex_derivatives[function][order-1](complex_make((const double[]){x, y}));
     out[0] = result.data[0];
     out[1] = result.data[1];
 }
@@ -57,6 +58,19 @@ void evaluate_complex(int function, int order, double x, double y, double out[2]
         return complex(result[0], result[1])
 
     return evaluate
+
+
+@pytest.mark.parametrize("name,function", FUNCTIONS, ids=[name for name, _ in FUNCTIONS])
+@pytest.mark.parametrize("order", [5, 6, 7])
+def test_higher_real_derivatives(derivatives, name, function, order):
+    # A larger contour bounds roundoff when extracting seventh derivatives.
+    value = 2 if name == "acosh" else 1.5 if name in {"log", "sqrt", "inv"} else .2
+    radius = .5
+    circle = np.exp(2j*np.pi*np.arange(512)/512)
+    expected = (math.factorial(order)/radius**order
+                * np.mean(function(value+radius*circle)*circle**(-order))).real
+    actual = derivatives("double", name, order, value)
+    assert actual == pytest.approx(expected, rel=3e-10, abs=3e-9)
 
 
 
@@ -144,6 +158,21 @@ def test_tanh_derivatives_after_saturation(derivatives):
         assert derivatives("double", "tanh", order, 100) == pytest.approx(
             factor*np.exp(-200), rel=5e-15, abs=0)
 
+
+@pytest.mark.parametrize("order", [5, 6, 7])
+def test_higher_derivatives_at_large_inputs(derivatives, order):
+    x = 1e30
+    sign = (-1)**(order-1)
+    for name in ("log", "asinh", "acosh"):
+        assert derivatives("double", name, order, x) == pytest.approx(
+            sign*math.factorial(order-1)/x**order, rel=8e-15, abs=0)
+    assert derivatives("double", "inv", order, x) == pytest.approx(
+        (-1)**order*math.factorial(order)/x**(order+1), rel=8e-15, abs=0)
+    assert derivatives("double", "atan", order, x) == pytest.approx(
+        sign*math.factorial(order)/x**(order+1), rel=8e-15, abs=0)
+    assert derivatives("double", "tanh", order, 100) == pytest.approx(
+        4*(-2)**(order-1)*np.exp(-200), rel=8e-15, abs=0)
+
 def test_fields_and_integer_boundaries_in_c(tmp_path):
     compiler = shutil.which("cc")
     if compiler is None:
@@ -163,7 +192,7 @@ int main(void) {
     feclearexcept(FE_ALL_EXCEPT);
     assert(double_ipow(1e200, 1) == 1e200);
     assert(!fetestexcept(FE_OVERFLOW));
-    complex a = complex_make(0, 1);
+    complex a = complex_make((const double[]){0, 1});
     complex result = complex_ipow(a, INT64_MIN);
     assert(result.data[0] == 1 && result.data[1] == 0);
     result = complex_ipow(a, INT64_MAX);

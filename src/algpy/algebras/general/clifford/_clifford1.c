@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "clifford1.h"
 
@@ -76,7 +77,7 @@ cl1_from_object(Info *info, PyObject *o, clifford1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = clifford1_make(d, 0);
+        *out = clifford1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -90,7 +91,7 @@ pycl1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &x, &y)) {
         return NULL;
     }
-    return cl1_from_value(type, clifford1_make(x, y));
+    return cl1_from_value(type, clifford1_make((const double[]){x, y}));
 }
 
 static PyObject *
@@ -248,7 +249,7 @@ pycl1_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 static PyObject *
 pycl1_one(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return cl1_from_value((PyTypeObject *)cls, clifford1_make(1, 0));
+    return cl1_from_value((PyTypeObject *)cls, clifford1_make((const double[]){1, 0}));
 }
 
 static PyObject *
@@ -285,6 +286,18 @@ pycl1_rmat(PyObject *self, PyObject *Py_UNUSED(args))
     clifford1_rmat(info->k, ((PyCL1 *)self)->v,
                            (double *)PyArray_DATA((PyArrayObject *)arr));
     return arr;
+}
+
+static PyObject *
+pycl1_center_minpoly(PyObject *self, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type(Py_TYPE(self));
+    clifford1 p[2];
+    if (info == NULL) {
+        return NULL;
+    }
+    clifford1_center_minpoly(info->k, ((PyCL1 *)self)->v, p);
+    return algpy_array_of_type((PyObject *)Py_TYPE(self), p, 2, sizeof(clifford1));
 }
 
 static PyObject *
@@ -358,6 +371,23 @@ pycl1_basis(PyObject *cls, PyObject *Py_UNUSED(args))
         return NULL;
     }
     clifford1_basis((clifford1 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
+pycl1_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    clifford1_gens((clifford1 *)PyArray_DATA(arr));
     return (PyObject *)arr;
 }
 
@@ -604,7 +634,10 @@ pycl1_imag(PyObject *self, void *closure)
     return pycl1_im(self, NULL);
 }
 
+static PyObject *pycl1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycl1_getset[] = {
+    {"grade", pycl1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycl1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycl1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -734,6 +767,27 @@ pycl1_ipow(PyObject *self, PyObject *arg)
     return cl1_from_value(Py_TYPE(self), clifford1_ipow(info->k, ((PyCL1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycl1_grade(PyObject *self, Py_ssize_t k)
+{
+    clifford1 v = ((PyCL1 *)self)->v;
+    switch (k) {
+        case 0:
+            return cl1_from_value(Py_TYPE(self), clifford1_grade0(v));
+        case 1:
+            return cl1_from_value(Py_TYPE(self), clifford1_grade1(v));
+        default:
+            return cl1_from_value(Py_TYPE(self), clifford1_zero());
+    }
+}
+
+static PyObject *
+pycl1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycl1_grade, 2);
+}
+
 static PyMethodDef pycl1_methods[] = {
     {"to_float", (PyCFunction)pycl1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycl1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -775,6 +829,7 @@ static PyMethodDef pycl1_methods[] = {
     {"zero", pycl1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycl1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycl1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycl1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycl1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycl1_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycl1_conjugate, METH_NOARGS, "Conjugate."},
@@ -782,6 +837,7 @@ static PyMethodDef pycl1_methods[] = {
     {"lmat", pycl1_lmat, METH_NOARGS, "Left multiplication matrix acting on coefficient columns."},
     {"rmat", pycl1_rmat, METH_NOARGS, "Right multiplication matrix acting on coefficient rows."},
     {"minpoly", pycl1_minpoly, METH_NOARGS, "Coefficients of the generic minimal polynomial."},
+    {"center_minpoly", pycl1_center_minpoly, METH_NOARGS, "Coefficients of the minimal polynomial over the centre, which is the whole algebra: [-a, 1]."},
     {"eivals", pycl1_eivals, METH_NOARGS, "Eigenvalues as an array of Python complex."},
     {"__reduce__", pycl1_reduce, METH_NOARGS, "Support for pickle."},
     {NULL, NULL, 0, NULL}
@@ -958,7 +1014,7 @@ npycl1_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = clifford1_make(d[0], d[1]);
+        v = clifford1_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1022,7 +1078,7 @@ typedef struct { char c; clifford1 v; } align_test;
         clifford1 *dst = (clifford1 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = clifford1_make(convert(src[i]), 0);                \
+            dst[i] = clifford1_make((const double[]){convert(src[i]), 0});                \
         }                                                                  \
     }
 
@@ -1294,7 +1350,15 @@ meta_set_K(PyObject *self, PyObject *value, void *closure)
     return 0;
 }
 
+static PyObject *
+meta_get_center(PyObject *self, void *closure)
+{
+    /* The algebra is commutative and is its own centre. */
+    return Py_NewRef(self);
+}
+
 static PyGetSetDef meta_getset[] = {
+    {"center", meta_get_center, NULL, "Type of the centre: the algebra itself.", NULL},
     {"K", meta_get_K, meta_set_K, "Mutable parameters (list of 1 floats).",
      NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -1410,7 +1474,7 @@ cl1_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = cl1_from_value((PyTypeObject *)type, clifford1_make(x, y));
+    res = cl1_from_value((PyTypeObject *)type, clifford1_make((const double[]){x, y}));
     Py_DECREF(type);
     return res;
 }

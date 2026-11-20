@@ -308,18 +308,18 @@ static void check(vec3 k, clifford3 a) {
 int main(void) {
     for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) for (int l = -1; l <= 1; l++) {
         vec3 k = {{i, j, l}};
-        check(k, clifford3_make(.3, .1, -.2, .15, .25, -.3, .125, .2));
+        check(k, clifford3_make((const double[]){.3, .1, -.2, .15, .25, -.3, .125, .2}));
     }
     vec3 k = {{1, 1, 1}};
-    check(k, clifford3_make(.3, .25, 0, .25, 0, 0, 0, .2));
+    check(k, clifford3_make((const double[]){.3, .25, 0, .25, 0, 0, 0, .2}));
     k.data[2] = 0;
-    check(k, clifford3_make(.3, 1, 0, 1, 1, 0, 0, .2));
+    check(k, clifford3_make((const double[]){.3, 1, 0, 1, 1, 0, 0, .2}));
     for (int i = -1; i <= 1; i += 2) {
         k.data[1] = 1 + i*1e-2;
-        check(k, clifford3_make(.3, 1, 0, 1, 1, 0, 0, .2));
+        check(k, clifford3_make((const double[]){.3, 1, 0, 1, 1, 0, 0, .2}));
     }
     k = (vec3){{1e-6, 0, 0}};
-    clifford3 actual = clifford3_apply(k, clifford3_make(.3, 1, 0, 0, 0, 0, 0, 0),
+    clifford3 actual = clifford3_apply(k, clifford3_make((const double[]){.3, 1, 0, 0, 0, 0, 0, 0}),
         fast, fast1, fast2, fast3, cfast, cfast1);
     assert(fabs(actual.data[0] - sin(300)*cos(1)) < 1e-12);
     assert(fabs(actual.data[1] - 1000*cos(300)*sin(1)) < 1e-9);
@@ -362,6 +362,12 @@ def test_basic_norm(common_algebra):
 def test_basic_minpoly_eivals(common_algebra):
     basic.check_minpoly_eivals(common_algebra)
 
+@pytest.mark.parametrize("parameters", [(-1, -1, -1), (1, 1, 1), (0, 0, 0), (0, -2, 0.5)], ids=str)
+def test_basic_gens(common_algebra, parameters):
+    if parameters is not None:
+        common_algebra.K = parameters
+    basic.check_gens(common_algebra)
+
 def test_basic_basis(common_algebra):
     basic.check_basis(common_algebra)
 
@@ -384,6 +390,9 @@ def test_api_binary_cast_broadcast_and_operator(common_algebra, name):
 
 def test_api_predicates_parts_and_inverse(common_algebra):
     api.check_predicates_parts_and_inverse(common_algebra)
+
+def test_api_grade_projection(common_algebra):
+    api.check_grade_projection(common_algebra)
 
 def test_api_norm_static_return_type(common_algebra):
     api.check_norm_static_return_type(common_algebra)
@@ -517,3 +526,8 @@ def test_binding_byteorder(common_algebra):
 
 def test_binding_real_input_dtypes(common_algebra):
     binding_checks.check_real_input_dtypes(common_algebra)
+
+
+@pytest.mark.parametrize("parameters", [[-1]*3, [1]*3, [.5, -2] + [1]*1, [0] + [1]*2, [2, 0, -1] + [-1]*0], ids=str)
+def test_api_center_minpoly(common_algebra, parameters):
+    api.check_center_minpoly(common_algebra, parameters)

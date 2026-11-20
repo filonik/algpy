@@ -21,6 +21,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "multicomplex3.h"
 
@@ -79,7 +80,7 @@ mc3_from_object(Info *info, PyObject *o, multicomplex3 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = multicomplex3_make(d, 0, 0, 0, 0, 0, 0, 0);
+        *out = multicomplex3_make((const double[]){d, 0, 0, 0, 0, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -96,8 +97,7 @@ pymc3_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      c + 6, c + 7)) {
         return NULL;
     }
-    return mc3_from_value(type, multicomplex3_make(c[0], c[1], c[2], c[3],
-                                                   c[4], c[5], c[6], c[7]));
+    return mc3_from_value(type, multicomplex3_make(c));
 }
 
 static PyObject *
@@ -364,6 +364,23 @@ pymc3_basis(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pymc3_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex3_gens((multicomplex3 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pymc3_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type((PyTypeObject *)cls);
@@ -606,7 +623,10 @@ pymc3_imag(PyObject *self, void *closure)
     return pymc3_im(self, NULL);
 }
 
+static PyObject *pymc3_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pymc3_getset[] = {
+    {"grade", pymc3_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pymc3_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pymc3_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -736,6 +756,31 @@ pymc3_ipow(PyObject *self, PyObject *arg)
     return mc3_from_value(Py_TYPE(self), multicomplex3_ipow(info->k, ((PyMC3 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pymc3_grade(PyObject *self, Py_ssize_t k)
+{
+    multicomplex3 v = ((PyMC3 *)self)->v;
+    switch (k) {
+        case 0:
+            return mc3_from_value(Py_TYPE(self), multicomplex3_grade0(v));
+        case 1:
+            return mc3_from_value(Py_TYPE(self), multicomplex3_grade1(v));
+        case 2:
+            return mc3_from_value(Py_TYPE(self), multicomplex3_grade2(v));
+        case 3:
+            return mc3_from_value(Py_TYPE(self), multicomplex3_grade3(v));
+        default:
+            return mc3_from_value(Py_TYPE(self), multicomplex3_zero());
+    }
+}
+
+static PyObject *
+pymc3_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pymc3_grade, 4);
+}
+
 static PyMethodDef pymc3_methods[] = {
     {"to_float", (PyCFunction)pymc3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pymc3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -777,6 +822,7 @@ static PyMethodDef pymc3_methods[] = {
     {"zero", pymc3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pymc3_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pymc3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pymc3_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pymc3_conjugate, METH_NOARGS, "Conjugate."},
@@ -959,7 +1005,7 @@ npymc3_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = multicomplex3_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+        v = multicomplex3_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1023,7 +1069,7 @@ typedef struct { char c; multicomplex3 v; } align_test;
         multicomplex3 *dst = (multicomplex3 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = multicomplex3_make(convert(src[i]), 0, 0, 0, 0, 0, 0, 0);                \
+            dst[i] = multicomplex3_make((const double[]){convert(src[i]), 0, 0, 0, 0, 0, 0, 0});                \
         }                                                                  \
     }
 
@@ -1414,7 +1460,7 @@ mc3_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = mc3_from_value((PyTypeObject *)type, multicomplex3_make(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]));
+    res = mc3_from_value((PyTypeObject *)type, multicomplex3_make(c));
     Py_DECREF(type);
     return res;
 }

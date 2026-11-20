@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "clifford4.h"
 
@@ -78,8 +79,8 @@ cl4_from_object(Info *info, PyObject *o, clifford4 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = clifford4_make(
-            d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        *out = clifford4_make((const double[]){
+            d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -98,9 +99,7 @@ pycl4_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      c + 11, c + 12, c + 13, c + 14, c + 15)) {
         return NULL;
     }
-    return cl4_from_value(type, clifford4_make(
-        c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7],
-        c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]));
+    return cl4_from_value(type, clifford4_make(c));
 }
 
 static PyObject *
@@ -372,6 +371,23 @@ pycl4_basis(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pycl4_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {4};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    clifford4_gens((clifford4 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pycl4_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type((PyTypeObject *)cls);
@@ -614,7 +630,10 @@ pycl4_imag(PyObject *self, void *closure)
     return pycl4_im(self, NULL);
 }
 
+static PyObject *pycl4_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycl4_getset[] = {
+    {"grade", pycl4_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycl4_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycl4_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -744,6 +763,33 @@ pycl4_ipow(PyObject *self, PyObject *arg)
     return cl4_from_value(Py_TYPE(self), clifford4_ipow(info->k, ((PyCL4 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycl4_grade(PyObject *self, Py_ssize_t k)
+{
+    clifford4 v = ((PyCL4 *)self)->v;
+    switch (k) {
+        case 0:
+            return cl4_from_value(Py_TYPE(self), clifford4_grade0(v));
+        case 1:
+            return cl4_from_value(Py_TYPE(self), clifford4_grade1(v));
+        case 2:
+            return cl4_from_value(Py_TYPE(self), clifford4_grade2(v));
+        case 3:
+            return cl4_from_value(Py_TYPE(self), clifford4_grade3(v));
+        case 4:
+            return cl4_from_value(Py_TYPE(self), clifford4_grade4(v));
+        default:
+            return cl4_from_value(Py_TYPE(self), clifford4_zero());
+    }
+}
+
+static PyObject *
+pycl4_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycl4_grade, 5);
+}
+
 static PyMethodDef pycl4_methods[] = {
     {"to_float", (PyCFunction)pycl4_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycl4_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -785,6 +831,7 @@ static PyMethodDef pycl4_methods[] = {
     {"zero", pycl4_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycl4_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycl4_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycl4_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycl4_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycl4_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycl4_conjugate, METH_NOARGS, "Conjugate."},
@@ -967,9 +1014,7 @@ npycl4_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = clifford4_make(
-            d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7],
-            d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
+        v = clifford4_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1033,8 +1078,8 @@ typedef struct { char c; clifford4 v; } align_test;
         clifford4 *dst = (clifford4 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = clifford4_make(                                 \
-                convert(src[i]), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); \
+            dst[i] = clifford4_make((const double[]){                                 \
+                convert(src[i]), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}); \
         }                                                                  \
     }
 
@@ -1427,7 +1472,7 @@ cl4_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = cl4_from_value((PyTypeObject *)type, clifford4_make(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]));
+    res = cl4_from_value((PyTypeObject *)type, clifford4_make(c));
     Py_DECREF(type);
     return res;
 }

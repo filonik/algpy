@@ -3,12 +3,14 @@ from ._cayleydickson1 import cayleydickson1
 from ._cayleydickson2 import cayleydickson2
 from ._cayleydickson3 import cayleydickson3
 from ._cayleydickson4 import cayleydickson4
+from ._cayleydickson5 import cayleydickson5
 
 _CONSTRUCTORS = {
     1: cayleydickson1,
     2: cayleydickson2,
     3: cayleydickson3,
     4: cayleydickson4,
+    5: cayleydickson5,
 }
 
 
@@ -29,4 +31,5 @@ __all__ = [
     "cayleydickson2",
     "cayleydickson3",
     "cayleydickson4",
+    "cayleydickson5",
 ]

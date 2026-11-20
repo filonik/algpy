@@ -3,6 +3,7 @@
 
 #define ALGPY_CLIFFORD3_N 8
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -11,49 +12,50 @@
 #include "../../../polynomials/hermite_quadratic.h"
 #include "../../../vectorspaces/vec3.h"
 #include "../../../vectorspaces/vec8.h"
+#include "clifford1.h"
 
 typedef vec8 clifford3;
 
 static inline clifford3
-clifford3_make(double x, double x0, double x1, double x01,
-                    double x2, double x02, double x12, double x012)
+clifford3_make(const double coeffs[ALGPY_CLIFFORD3_N])
 {
-    clifford3 r = {{x, x0, x1, x01, x2, x02, x12, x012}};
-    return r;
+    clifford3 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline clifford3
 clifford3_grade0(clifford3 a)
 {
     const double *x = a.data;
-    return clifford3_make(x[0], 0, 0, 0, 0, 0, 0, 0);
+    return clifford3_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline clifford3
 clifford3_grade1(clifford3 a)
 {
     const double *x = a.data;
-    return clifford3_make(0, x[1], x[2], 0, x[4], 0, 0, 0);
+    return clifford3_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
 }
 
 static inline clifford3
 clifford3_grade2(clifford3 a)
 {
     const double *x = a.data;
-    return clifford3_make(0, 0, 0, x[3], 0, x[5], x[6], 0);
+    return clifford3_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
 }
 
 static inline clifford3
 clifford3_grade3(clifford3 a)
 {
     const double *x = a.data;
-    return clifford3_make(0, 0, 0, 0, 0, 0, 0, x[7]);
+    return clifford3_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
 }
 
 static inline clifford3
 clifford3_from_re(double a)
 {
-    return clifford3_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return clifford3_make((const double[ALGPY_CLIFFORD3_N]){a});
 }
 
 static inline double
@@ -124,7 +126,14 @@ static inline clifford3
 clifford3_conjugate(clifford3 a)
 {
     const double *x = a.data;
-    return clifford3_make(x[0], -x[1], -x[2], -x[3], -x[4], -x[5], -x[6], x[7]);
+    return clifford3_make((const double[]){x[0], -x[1], -x[2], -x[3], -x[4], -x[5], -x[6], x[7]});
+}
+
+/* Square of the central pseudoscalar w = e0*e1*e2. */
+static inline double
+clifford3_pseudoscalar_square(vec3 k)
+{
+    return -k.data[0] * k.data[1] * k.data[2];
 }
 
 /* Product with the conjugate: lies in the centre span{1, e0*e1*e2}. */
@@ -155,7 +164,7 @@ clifford3_inv(vec3 k, clifford3 a)
     clifford3 d = clifford3_conjugate_product(k, a);
     double s = -k.data[0] * k.data[1] * k.data[2];
     double n = d.data[0] * d.data[0] - s * d.data[7] * d.data[7];
-    clifford3 dinv = clifford3_make(d.data[0], 0, 0, 0, 0, 0, 0, -d.data[7]);
+    clifford3 dinv = clifford3_make((const double[]){d.data[0], 0, 0, 0, 0, 0, 0, -d.data[7]});
     return vec8_div_scalar(
         clifford3_mul(k, clifford3_conjugate(a), dinv), n);
 }
@@ -180,6 +189,14 @@ clifford3_basis(clifford3 result[ALGPY_CLIFFORD3_N])
 }
 
 static inline void
+clifford3_gens(clifford3 result[3])
+{
+    result[0] = clifford3_make((const double[ALGPY_CLIFFORD3_N]){[1] = 1});
+    result[1] = clifford3_make((const double[ALGPY_CLIFFORD3_N]){[2] = 1});
+    result[2] = clifford3_make((const double[ALGPY_CLIFFORD3_N]){[4] = 1});
+}
+
+static inline void
 clifford3_coeffs(
     vec3 k,
     clifford3 result[ALGPY_CLIFFORD3_N * ALGPY_CLIFFORD3_N])
@@ -193,6 +210,22 @@ clifford3_coeffs(
                 clifford3_mul(k, basis[i], basis[j]);
         }
     }
+}
+
+/*
+ * Minimal polynomial over the centre span{1, w}, w = e0*e1*e2, which is the
+ * clifford1 algebra with parameter w*w = -k0*k1*k2. Each element satisfies
+ * p[0] + p[1]*a + p[2]*a^2 = 0 with central coefficients in ascending order:
+ * a^2 - tau*a + delta, where tau = a + conj(a) = 2*(x + x012*w) and
+ * delta = a*conj(a). Coefficient p[i] stands for p[i][0] + p[i][1]*w.
+ */
+static inline void
+clifford3_center_minpoly(vec3 k, clifford3 a, clifford1 p[3])
+{
+    clifford3 delta = clifford3_conjugate_product(k, a);
+    p[0] = clifford1_make((const double[]){delta.data[0], delta.data[7]});
+    p[1] = clifford1_make((const double[]){-2*a.data[0], -2*a.data[7]});
+    p[2] = clifford1_make((const double[]){1, 0});
 }
 
 static inline void
@@ -228,20 +261,20 @@ clifford3_eivals(vec3 k, clifford3 a, complex result[4])
     int m;
     for (m = 0; m < 2; m++) {
         double sign = m == 0 ? -1 : 1;
-        complex tau = complex_make(
+        complex tau = complex_make((const double[]){
             2 * (a.data[0] + sign * a.data[7] * w.data[0]),
-            2 * sign * a.data[7] * w.data[1]);
-        complex delta = complex_make(
+            2 * sign * a.data[7] * w.data[1]});
+        complex delta = complex_make((const double[]){
             d.data[0] + sign * d.data[7] * w.data[0],
-            sign * d.data[7] * w.data[1]);
+            sign * d.data[7] * w.data[1]});
         complex tau2 = complex_mul(tau, tau);
-        complex root = complex_sqrt(complex_make(
+        complex root = complex_sqrt(complex_make((const double[]){
             tau2.data[0] - 4 * delta.data[0],
-            tau2.data[1] - 4 * delta.data[1]));
-        result[2 * m] = complex_make((tau.data[0] - root.data[0]) / 2,
-                                      (tau.data[1] - root.data[1]) / 2);
-        result[2 * m + 1] = complex_make((tau.data[0] + root.data[0]) / 2,
-                                          (tau.data[1] + root.data[1]) / 2);
+            tau2.data[1] - 4 * delta.data[1]}));
+        result[2 * m] = complex_make((const double[]){(tau.data[0] - root.data[0]) / 2,
+                                      (tau.data[1] - root.data[1]) / 2});
+        result[2 * m + 1] = complex_make((const double[]){(tau.data[0] + root.data[0]) / 2,
+                                          (tau.data[1] + root.data[1]) / 2});
     }
 }
 
@@ -314,7 +347,7 @@ clifford3_center_slice(vec3 k, clifford3 a,
 {
     const double *x = a.data;
     double k0 = k.data[0], k1 = k.data[1], k2 = k.data[2];
-    return clifford3_make(
+    return clifford3_make((const double[]){
         a0,
         b0*x[1] - b7*k1*k2*x[6],
         b0*x[2] + b7*k0*k2*x[5],
@@ -322,7 +355,7 @@ clifford3_center_slice(vec3 k, clifford3 a,
         b0*x[4] - b7*k0*k1*x[3],
         b0*x[5] - b7*k1*x[2],
         b0*x[6] + b7*k0*x[1],
-        a7);
+        a7});
 }
 
 /* Real scalar inputs use the first available negative-square basis blade
@@ -344,7 +377,7 @@ clifford3_real_slice(vec3 k, complex value)
             return result;
         }
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* f(a) = (even_re + even_i*I) + (odd_re + odd_i*I)*u. */
@@ -371,10 +404,10 @@ clifford3_center_is_near_dual(double w, double t, double q0, double q7, double s
     }
     radius = sqrt(fabs(q0));
     if (q0 >= 0) {
-        distance = fmin(hermite_function_distance(complex_make(w + radius, 0), f),
-            hermite_function_distance(complex_make(w - radius, 0), f));
+        distance = fmin(hermite_function_distance(complex_make((const double[]){w + radius, 0}), f),
+            hermite_function_distance(complex_make((const double[]){w - radius, 0}), f));
     } else {
-        distance = hermite_function_distance(complex_make(w, radius), f);
+        distance = hermite_function_distance(complex_make((const double[]){w, radius}), f);
     }
     return distance > 0 && sqrt(fabs(s))*(fabs(t)/distance +
         fabs(q7)/distance/distance) < 0.001 && isfinite(f(w));
@@ -437,22 +470,22 @@ clifford3_apply_central(clifford3 a, double s,
     double w = a.data[0], t = a.data[7];
     if (s < 0) {
         double scale = sqrt(-s);
-        complex value = cf(complex_make(w, scale*t));
-        return clifford3_make(value.data[0], 0, 0, 0, 0, 0, 0, value.data[1]/scale);
+        complex value = cf(complex_make((const double[]){w, scale*t}));
+        return clifford3_make((const double[]){value.data[0], 0, 0, 0, 0, 0, 0, value.data[1]/scale});
     }
     if (s > 0) {
         hermite_quadratic value = {0};
         if (hermite_quadratic_apply(w, s*t*t, 0,
                 f, deriv1, deriv2, deriv3, cf, cderiv1, &value)) {
-            return clifford3_make(value.even, 0, 0, 0, 0, 0, 0, t*value.odd);
+            return clifford3_make((const double[]){value.even, 0, 0, 0, 0, 0, 0, t*value.odd});
         }
     } else if (s == 0) {
         double value = f(w), derivative = deriv1(w);
         if (isfinite(value) && isfinite(derivative)) {
-            return clifford3_make(value, 0, 0, 0, 0, 0, 0, t*derivative);
+            return clifford3_make((const double[]){value, 0, 0, 0, 0, 0, 0, t*derivative});
         }
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* Scalar centre and scalar u^2: the same real quadratic calculus as
@@ -468,7 +501,7 @@ clifford3_apply_real_quadratic(vec3 k, clifford3 a, double q,
             f, deriv1, deriv2, deriv3, cf, cderiv1, &value)) {
         return clifford3_center_slice(k, a, value.even, 0, value.odd, 0);
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* I^2<0: represent the centre by complex numbers. */
@@ -477,8 +510,8 @@ clifford3_apply_complex_center(vec3 k, clifford3 a, double s, double q0, double 
     double (*f)(double), complex (*cf)(complex), complex (*cderiv1)(complex))
 {
     double scale = sqrt(-s);
-    complex z = complex_make(a.data[0], scale*a.data[7]);
-    complex q = complex_make(q0, scale*q7);
+    complex z = complex_make((const double[]){a.data[0], scale*a.data[7]});
+    complex q = complex_make((const double[]){q0, scale*q7});
     complex root = complex_sqrt(q);
     complex even, odd;
     double radius = hypot(root.data[0], root.data[1]);
@@ -498,7 +531,7 @@ clifford3_apply_complex_center(vec3 k, clifford3 a, double s, double q0, double 
         return clifford3_center_slice(k, a, even.data[0], even.data[1]/scale,
             odd.data[0], odd.data[1]/scale);
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* A zero projected u needs only f(w), even when f'(w) is singular. */
@@ -537,7 +570,7 @@ clifford3_apply_split_center(vec3 k, clifford3 a, double s, double q0, double q7
             plus.even/2 + minus.even/2, (plus.even/2 - minus.even/2)/scale,
             plus.odd/2 + minus.odd/2, (plus.odd/2 - minus.odd/2)/scale);
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* I^2=0: differentiate the real quadratic coefficients in the I direction.
@@ -556,7 +589,7 @@ clifford3_apply_dual_center(vec3 k, clifford3 a, double q0, double q7,
             t*value.even_dw + q7*value.odd_dw/2, value.odd,
             t*value.odd_dw + q7*value.odd_dq);
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* With a=z+u, z=w+t*I and u^2=q0+q7*I, f(a)=A+B*u.
@@ -577,7 +610,7 @@ clifford3_apply(vec3 k, clifford3 a,
     clifford3_center_coefficients value;
 
     if (vec8_is_real(a)) {
-        return clifford3_real_slice(k, cf(complex_make(x[0], 0)));
+        return clifford3_real_slice(k, cf(complex_make((const double[]){x[0], 0})));
     }
     if (x[7] == 0 && q7 == 0) {
         return clifford3_apply_real_quadratic(k, a, q0,
@@ -604,7 +637,7 @@ clifford3_apply(vec3 k, clifford3 a,
         return clifford3_apply_dual_center(k, a, q0, q7,
             f, deriv1, deriv2, deriv3, cf, cderiv1);
     }
-    return clifford3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 static inline clifford3
@@ -794,7 +827,7 @@ clifford3_lpows(vec3 k, clifford3 a, double b)
         if (!isnan(value)) {
             return clifford3_from_re(value);
         }
-        return clifford3_real_slice(k, complex_lpows(complex_make(a.data[0], 0), b));
+        return clifford3_real_slice(k, complex_lpows(complex_make((const double[]){a.data[0], 0}), b));
     }
     return clifford3_exp(k, vec8_scale(clifford3_log(k, a), b));
 }

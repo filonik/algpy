@@ -1,6 +1,8 @@
 """Algebra identities shared by the explicit per-algebra test files."""
+import inspect
 import numpy as np
 import pytest
+from algebra_reference import FIXED_METRICS, expected_norm_type
 
 
 def _dim(algebra):
@@ -63,7 +65,7 @@ def check_div(alg):
 def check_norm(alg):
     x = _sample(alg, 12)
     n = x.norm()
-    norm_type = complex if hasattr(alg, "K") or alg.__name__.startswith("splitcomplex") else float
+    norm_type = expected_norm_type(alg)
     assert type(n) is norm_type
     assert type(alg.one().norm()) is norm_type
     assert alg.one().norm() == pytest.approx(1)
@@ -85,6 +87,54 @@ def check_basis(alg):
     assert basis.shape == (n,)
     assert np.array_equal(alg.to_float(basis), np.eye(n))
     assert close(alg, basis[0], alg.one())
+
+def check_gens(alg):
+    if alg.__name__.startswith("complex_jet"):
+        _check_complex_jet_gens(alg)
+        return
+    if alg.__name__.startswith("jet"):
+        _check_jet_gens(alg)
+        return
+    count = alg.N.bit_length() - 1
+    indices = 1 << np.arange(count)
+    gens = alg.gens()
+    expected = np.eye(alg.N)[indices]
+    assert inspect.isbuiltin(alg.gens) and alg.gens.__self__ is alg
+    assert isinstance(gens, np.ndarray)
+    assert gens.shape == (count,) and gens.dtype == alg.dtype
+    assert gens.flags.writeable
+    np.testing.assert_array_equal(alg.to_float(gens), expected)
+    np.testing.assert_array_equal(alg.to_float(alg.one().gens()), expected)
+
+    if hasattr(alg, "K"):
+        squares = alg.K
+    elif alg.__name__ in FIXED_METRICS:
+        squares = FIXED_METRICS[alg.__name__]
+    elif alg.__name__.startswith("dual"):
+        squares = [0]*count
+    elif alg.__name__.startswith("splitcomplex"):
+        squares = [1]*count
+    else:
+        squares = [-1]*count
+    for generator, square in zip(gens, squares):
+        np.testing.assert_array_equal(alg.to_float(generator*generator),
+                                      alg.to_float(alg(square)))
+
+    # Ascending generator products, with left association for Cayley-Dickson,
+    # reproduce every basis element, even when generator squares are zero.
+    for index, basis_element in enumerate(alg.basis()):
+        value = alg.one()
+        for bit, generator in enumerate(gens):
+            if index & (1 << bit):
+                value = value*generator
+        np.testing.assert_array_equal(alg.to_float(value), alg.to_float(basis_element))
+
+    fresh = alg.gens()
+    assert not np.shares_memory(gens, fresh)
+    if count:
+        gens[0] = alg.zero()
+        np.testing.assert_array_equal(alg.to_float(fresh), expected)
+        np.testing.assert_array_equal(alg.to_float(alg.basis()), np.eye(alg.N))
 
 def check_coeffs(alg):
     n = _dim(alg)
@@ -118,3 +168,30 @@ def check_k_mutable(alg):
     finally:
         alg.K = original
     assert alg.K == original
+
+
+def _check_jet_gens(alg):
+    """Jets R[e]/(e^N) have the single generator e; basis element k is e^k."""
+    gens = alg.gens()
+    assert inspect.isbuiltin(alg.gens) and alg.gens.__self__ is alg
+    assert gens.shape == (1,) and gens.dtype == alg.dtype and gens.flags.writeable
+    np.testing.assert_array_equal(alg.to_float(gens), np.eye(alg.N)[[1]])
+    e = gens[0]
+    for k, basis_element in enumerate(alg.basis()):
+        np.testing.assert_array_equal(alg.to_float(e.ipow(k)), alg.to_float(basis_element))
+    assert e.ipow(alg.N) == alg.zero()
+
+
+def _check_complex_jet_gens(alg):
+    """C[e]/(e^n) over the reals: generators i and e at positions 1 and 2,
+    basis element 2k is e^k and 2k + 1 is i*e^k."""
+    gens = alg.gens()
+    assert inspect.isbuiltin(alg.gens) and alg.gens.__self__ is alg
+    assert gens.shape == (2,) and gens.dtype == alg.dtype and gens.flags.writeable
+    np.testing.assert_array_equal(alg.to_float(gens), np.eye(alg.N)[[1, 2]])
+    i, e = gens
+    assert i*i == alg(-1) and i*e == e*i
+    for index, basis_element in enumerate(alg.basis()):
+        value = e.ipow(index // 2)*(i if index % 2 else alg.one())
+        np.testing.assert_array_equal(alg.to_float(value), alg.to_float(basis_element))
+    assert e.ipow(alg.N // 2) == alg.zero()

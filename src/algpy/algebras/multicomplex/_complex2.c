@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "complex2.h"
 
@@ -53,7 +54,7 @@ complex2_from_object(PyObject *o, complex2 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = complex2_make(d, 0, 0, 0);
+        *out = complex2_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -68,7 +69,7 @@ pycomplex2_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return PyComplex2_FromValue(type, complex2_make(w, x, y, z));
+    return PyComplex2_FromValue(type, complex2_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -323,6 +324,21 @@ pycomplex2_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pycomplex2_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_complex2);
+    complex2 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (complex2 *)PyArray_DATA(arr);
+    complex2_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pycomplex2_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {4, 4};
@@ -459,7 +475,10 @@ pycomplex2_imag(PyObject *self, void *closure)
     return pycomplex2_im(self, NULL);
 }
 
+static PyObject *pycomplex2_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycomplex2_getset[] = {
+    {"grade", pycomplex2_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycomplex2_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycomplex2_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -565,6 +584,29 @@ pycomplex2_ipow(PyObject *self, PyObject *arg)
     return NEW_COMPLEX2(complex2_ipow(((PyComplex2 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycomplex2_grade(PyObject *self, Py_ssize_t k)
+{
+    complex2 v = ((PyComplex2 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyComplex2_FromValue(Py_TYPE(self), complex2_grade0(v));
+        case 1:
+            return PyComplex2_FromValue(Py_TYPE(self), complex2_grade1(v));
+        case 2:
+            return PyComplex2_FromValue(Py_TYPE(self), complex2_grade2(v));
+        default:
+            return PyComplex2_FromValue(Py_TYPE(self), complex2_zero());
+    }
+}
+
+static PyObject *
+pycomplex2_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycomplex2_grade, 3);
+}
+
 static PyMethodDef pycomplex2_methods[] = {
     {"to_float", (PyCFunction)pycomplex2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -599,6 +641,7 @@ static PyMethodDef pycomplex2_methods[] = {
     {"zero", pycomplex2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycomplex2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycomplex2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycomplex2_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycomplex2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pycomplex2_norm2, METH_NOARGS, "Squared norm (a complex pair)."},
     {"norm4", pycomplex2_norm4, METH_NOARGS, "Fourth power of the norm."},

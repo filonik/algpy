@@ -17,6 +17,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "quaternion.h"
 
@@ -64,7 +65,7 @@ quaternion_from_object(PyObject *o, quaternion *out)
             /* e.g. OverflowError for huge ints */
             return -1;
         }
-        *out = quaternion_make(d, 0, 0, 0);
+        *out = quaternion_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -79,7 +80,7 @@ pyquaternion_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return PyQuaternion_FromQuaternion(type, quaternion_make(w, x, y, z));
+    return PyQuaternion_FromQuaternion(type, quaternion_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -320,6 +321,19 @@ pyquaternion_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pyquaternion_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_quaternion);
+    if (arr == NULL) {
+        return NULL;
+    }
+    quaternion_gens((quaternion *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pyquaternion_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {ALGPY_QUATERNION_N, ALGPY_QUATERNION_N};
@@ -464,7 +478,10 @@ pyquaternion_imag(PyObject *self, void *closure)
     return pyquaternion_im(self, NULL);
 }
 
+static PyObject *pyquaternion_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pyquaternion_getset[] = {
+    {"grade", pyquaternion_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pyquaternion_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pyquaternion_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -570,6 +587,29 @@ pyquaternion_ipow(PyObject *self, PyObject *arg)
     return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_ipow(((PyQuaternion *)self)->q, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pyquaternion_grade(PyObject *self, Py_ssize_t k)
+{
+    quaternion v = ((PyQuaternion *)self)->q;
+    switch (k) {
+        case 0:
+            return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_grade0(v));
+        case 1:
+            return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_grade1(v));
+        case 2:
+            return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_grade2(v));
+        default:
+            return PyQuaternion_FromQuaternion(Py_TYPE(self), quaternion_zero());
+    }
+}
+
+static PyObject *
+pyquaternion_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pyquaternion_grade, 3);
+}
+
 static PyMethodDef pyquaternion_methods[] = {
     {"to_float", (PyCFunction)pyquaternion_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyquaternion_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -609,6 +649,7 @@ static PyMethodDef pyquaternion_methods[] = {
     {"zero", pyquaternion_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pyquaternion_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pyquaternion_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pyquaternion_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pyquaternion_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pyquaternion_norm2, METH_NOARGS, "Squared norm."},
     {"norm", pyquaternion_norm, METH_NOARGS, "Norm as a Python float."},
@@ -785,7 +826,7 @@ npyquaternion_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        q = quaternion_make(v[0], v[1], v[2], v[3]);
+        q = quaternion_make(v);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&q);

@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "splitcomplex4.h"
 
@@ -68,7 +69,7 @@ pysplitcomplex4_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7], &d[8], &d[9], &d[10], &d[11], &d[12], &d[13], &d[14], &d[15])) {
         return NULL;
     }
-    return PySplitcomplex4_FromValue(type, splitcomplex4_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]));
+    return PySplitcomplex4_FromValue(type, splitcomplex4_make(d));
 }
 
 static PyObject *
@@ -311,6 +312,21 @@ pysplitcomplex4_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pysplitcomplex4_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {4};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_splitcomplex4);
+    splitcomplex4 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (splitcomplex4 *)PyArray_DATA(arr);
+    splitcomplex4_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pysplitcomplex4_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {16, 16};
@@ -447,7 +463,10 @@ pysplitcomplex4_imag(PyObject *self, void *closure)
     return pysplitcomplex4_im(self, NULL);
 }
 
+static PyObject *pysplitcomplex4_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pysplitcomplex4_getset[] = {
+    {"grade", pysplitcomplex4_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pysplitcomplex4_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pysplitcomplex4_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -553,6 +572,33 @@ pysplitcomplex4_ipow(PyObject *self, PyObject *arg)
     return NEW_SPLITCOMPLEX4(splitcomplex4_ipow(((PySplitcomplex4 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pysplitcomplex4_grade(PyObject *self, Py_ssize_t k)
+{
+    splitcomplex4 v = ((PySplitcomplex4 *)self)->v;
+    switch (k) {
+        case 0:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_grade0(v));
+        case 1:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_grade1(v));
+        case 2:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_grade2(v));
+        case 3:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_grade3(v));
+        case 4:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_grade4(v));
+        default:
+            return PySplitcomplex4_FromValue(Py_TYPE(self), splitcomplex4_zero());
+    }
+}
+
+static PyObject *
+pysplitcomplex4_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pysplitcomplex4_grade, 5);
+}
+
 static PyMethodDef pysplitcomplex4_methods[] = {
     {"to_float", (PyCFunction)pysplitcomplex4_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysplitcomplex4_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -587,6 +633,7 @@ static PyMethodDef pysplitcomplex4_methods[] = {
     {"zero", pysplitcomplex4_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex4_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex4_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pysplitcomplex4_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pysplitcomplex4_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pysplitcomplex4_norm, METH_NOARGS, "Norm as a Python complex."},
     {"lpow", pysplitcomplex4_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

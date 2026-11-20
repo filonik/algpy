@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "clifford2.h"
 
@@ -78,7 +79,7 @@ cl2_from_object(Info *info, PyObject *o, clifford2 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = clifford2_make(d, 0, 0, 0);
+        *out = clifford2_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -93,7 +94,7 @@ pycl2_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return cl2_from_value(type, clifford2_make(w, x, y, z));
+    return cl2_from_value(type, clifford2_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -242,7 +243,7 @@ pycl2_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 static PyObject *
 pycl2_one(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return cl2_from_value((PyTypeObject *)cls, clifford2_make(1, 0, 0, 0));
+    return cl2_from_value((PyTypeObject *)cls, clifford2_make((const double[]){1, 0, 0, 0}));
 }
 
 static PyObject *rebuild_func = NULL;
@@ -353,6 +354,23 @@ pycl2_basis(PyObject *cls, PyObject *Py_UNUSED(args))
         return NULL;
     }
     clifford2_basis((clifford2 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
+pycl2_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    clifford2_gens((clifford2 *)PyArray_DATA(arr));
     return (PyObject *)arr;
 }
 
@@ -599,7 +617,10 @@ pycl2_imag(PyObject *self, void *closure)
     return pycl2_im(self, NULL);
 }
 
+static PyObject *pycl2_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycl2_getset[] = {
+    {"grade", pycl2_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycl2_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycl2_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -729,6 +750,29 @@ pycl2_ipow(PyObject *self, PyObject *arg)
     return cl2_from_value(Py_TYPE(self), clifford2_ipow(info->k, ((PyCL2 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycl2_grade(PyObject *self, Py_ssize_t k)
+{
+    clifford2 v = ((PyCL2 *)self)->v;
+    switch (k) {
+        case 0:
+            return cl2_from_value(Py_TYPE(self), clifford2_grade0(v));
+        case 1:
+            return cl2_from_value(Py_TYPE(self), clifford2_grade1(v));
+        case 2:
+            return cl2_from_value(Py_TYPE(self), clifford2_grade2(v));
+        default:
+            return cl2_from_value(Py_TYPE(self), clifford2_zero());
+    }
+}
+
+static PyObject *
+pycl2_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycl2_grade, 3);
+}
+
 static PyMethodDef pycl2_methods[] = {
     {"to_float", (PyCFunction)pycl2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycl2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -770,6 +814,7 @@ static PyMethodDef pycl2_methods[] = {
     {"zero", pycl2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycl2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycl2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycl2_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycl2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycl2_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycl2_conjugate, METH_NOARGS, "Conjugate."},
@@ -952,7 +997,7 @@ npycl2_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = clifford2_make(d[0], d[1], d[2], d[3]);
+        v = clifford2_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1405,7 +1450,7 @@ cl2_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = cl2_from_value((PyTypeObject *)type, clifford2_make(w, x, y, z));
+    res = cl2_from_value((PyTypeObject *)type, clifford2_make((const double[]){w, x, y, z}));
     Py_DECREF(type);
     return res;
 }

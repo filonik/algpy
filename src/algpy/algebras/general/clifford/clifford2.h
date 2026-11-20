@@ -15,6 +15,7 @@ typedef cayleydickson2 clifford2;
 #define clifford2_inv cayleydickson2_inv
 #define clifford2_div cayleydickson2_div
 #define clifford2_basis cayleydickson2_basis
+#define clifford2_gens cayleydickson2_gens
 #define clifford2_coeffs cayleydickson2_coeffs
 #define clifford2_minpoly cayleydickson2_minpoly
 #define clifford2_eivals cayleydickson2_eivals
@@ -69,5 +70,8 @@ typedef cayleydickson2 clifford2;
 #define clifford2_lmat cayleydickson2_lmat
 #define clifford2_rmat cayleydickson2_rmat
 
+#define clifford2_grade0 cayleydickson2_grade0
+#define clifford2_grade1 cayleydickson2_grade1
+#define clifford2_grade2 cayleydickson2_grade2
 
 #endif /* ALGPY_CLIFFORD2_H */

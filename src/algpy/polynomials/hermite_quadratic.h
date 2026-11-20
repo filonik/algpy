@@ -113,7 +113,7 @@ hermite_quadratic_apply(double w, double q, int with_derivatives,
     complex (*cf)(complex), complex (*cderiv1)(complex), hermite_quadratic *result)
 {
     double radius = sqrt(fabs(q));
-    double distance = hermite_function_distance(complex_make(w, 0), f);
+    double distance = hermite_function_distance(complex_make((const double[]){w, 0}), f);
     if (q != 0 && radius < 0.015*distance &&
         hermite_quadratic_near(w, q, radius, with_derivatives,
             f, deriv1, deriv2, deriv3, result)) {
@@ -136,11 +136,11 @@ hermite_quadratic_apply(double w, double q, int with_derivatives,
             result->odd_dq = (result->even_dw - result->odd)/(2*q);
         }
     } else if (q < 0) {
-        complex value = cf(complex_make(w, radius));
+        complex value = cf(complex_make((const double[]){w, radius}));
         result->even = value.data[0];
         result->odd = value.data[1]/radius;
         if (with_derivatives) {
-            complex derivative = cderiv1(complex_make(w, radius));
+            complex derivative = cderiv1(complex_make((const double[]){w, radius}));
             result->even_dw = derivative.data[0];
             result->odd_dw = derivative.data[1]/radius;
             result->odd_dq = (result->even_dw - result->odd)/(2*q);

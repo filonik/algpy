@@ -21,6 +21,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "cayleydickson3.h"
 
@@ -79,7 +80,7 @@ cd3_from_object(Info *info, PyObject *o, cayleydickson3 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = cayleydickson3_make(d, 0, 0, 0, 0, 0, 0, 0);
+        *out = cayleydickson3_make((const double[]){d, 0, 0, 0, 0, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -96,8 +97,7 @@ pycd3_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      c + 6, c + 7)) {
         return NULL;
     }
-    return cd3_from_value(type, cayleydickson3_make(c[0], c[1], c[2], c[3],
-                                                   c[4], c[5], c[6], c[7]));
+    return cd3_from_value(type, cayleydickson3_make(c));
 }
 
 static PyObject *
@@ -364,6 +364,23 @@ pycd3_basis(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pycd3_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    cayleydickson3_gens((cayleydickson3 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pycd3_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type((PyTypeObject *)cls);
@@ -606,7 +623,10 @@ pycd3_imag(PyObject *self, void *closure)
     return pycd3_im(self, NULL);
 }
 
+static PyObject *pycd3_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycd3_getset[] = {
+    {"grade", pycd3_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycd3_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycd3_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -736,6 +756,31 @@ pycd3_ipow(PyObject *self, PyObject *arg)
     return cd3_from_value(Py_TYPE(self), cayleydickson3_ipow(info->k, ((PyCD3 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycd3_grade(PyObject *self, Py_ssize_t k)
+{
+    cayleydickson3 v = ((PyCD3 *)self)->v;
+    switch (k) {
+        case 0:
+            return cd3_from_value(Py_TYPE(self), cayleydickson3_grade0(v));
+        case 1:
+            return cd3_from_value(Py_TYPE(self), cayleydickson3_grade1(v));
+        case 2:
+            return cd3_from_value(Py_TYPE(self), cayleydickson3_grade2(v));
+        case 3:
+            return cd3_from_value(Py_TYPE(self), cayleydickson3_grade3(v));
+        default:
+            return cd3_from_value(Py_TYPE(self), cayleydickson3_zero());
+    }
+}
+
+static PyObject *
+pycd3_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycd3_grade, 4);
+}
+
 static PyMethodDef pycd3_methods[] = {
     {"to_float", (PyCFunction)pycd3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycd3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -777,6 +822,7 @@ static PyMethodDef pycd3_methods[] = {
     {"zero", pycd3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycd3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycd3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycd3_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycd3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycd3_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pycd3_conjugate, METH_NOARGS, "Conjugate."},
@@ -959,7 +1005,7 @@ npycd3_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = cayleydickson3_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+        v = cayleydickson3_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1023,7 +1069,7 @@ typedef struct { char c; cayleydickson3 v; } align_test;
         cayleydickson3 *dst = (cayleydickson3 *)to;                          \
         npy_intp i;                                                        \
         for (i = 0; i < n; i++) {                                          \
-            dst[i] = cayleydickson3_make(convert(src[i]), 0, 0, 0, 0, 0, 0, 0);                \
+            dst[i] = cayleydickson3_make((const double[]){convert(src[i]), 0, 0, 0, 0, 0, 0, 0});                \
         }                                                                  \
     }
 
@@ -1414,7 +1460,7 @@ cd3_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = cd3_from_value((PyTypeObject *)type, cayleydickson3_make(c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]));
+    res = cd3_from_value((PyTypeObject *)type, cayleydickson3_make(c));
     Py_DECREF(type);
     return res;
 }

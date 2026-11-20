@@ -186,6 +186,12 @@ def test_basic_norm(common_algebra):
 def test_basic_minpoly_eivals(common_algebra):
     basic.check_minpoly_eivals(common_algebra)
 
+@pytest.mark.parametrize("parameters", [(-1, -1, -1, -1), (1, 1, 1, 1), (0, 0, 0, 0), (0, -2, 0.5, -1.5)], ids=str)
+def test_basic_gens(common_algebra, parameters):
+    if parameters is not None:
+        common_algebra.K = parameters
+    basic.check_gens(common_algebra)
+
 def test_basic_basis(common_algebra):
     basic.check_basis(common_algebra)
 
@@ -208,6 +214,9 @@ def test_api_binary_cast_broadcast_and_operator(common_algebra, name):
 
 def test_api_predicates_parts_and_inverse(common_algebra):
     api.check_predicates_parts_and_inverse(common_algebra)
+
+def test_api_grade_projection(common_algebra):
+    api.check_grade_projection(common_algebra)
 
 def test_api_norm_static_return_type(common_algebra):
     api.check_norm_static_return_type(common_algebra)

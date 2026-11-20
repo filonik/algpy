@@ -19,7 +19,7 @@ def scalar_type(order):
 
 
 def scaled(signs):
-    return tuple(sign*magnitude for sign, magnitude in zip(signs, [0.25, 4, 2.25, 9]))
+    return tuple(sign*magnitude for sign, magnitude in zip(signs, [0.25, 4, 2.25, 9, 0.5]))
 
 
 @lru_cache(None)
@@ -104,11 +104,11 @@ def c_derivatives(tmp_path_factory):
     directory = tmp_path_factory.mktemp("multicomplex_derivatives")
     root = Path(__file__).resolve().parents[1]
     tables, cases = [], []
-    for order in range(1, 4):
+    for order in range(1, 5):
         prefix = f"multicomplex{order}"
-        rows = ["    {"+", ".join(f"{prefix}_{name}_deriv{d}" for d in range(1, 5-order))+"}"
+        rows = ["    {"+", ".join(f"{prefix}_{name}_deriv{d}" for d in range(1, 6-order))+"}"
                 for name, _ in FUNCTIONS]
-        tables.append(f"static {prefix} (*{prefix}_derivatives[][{4-order}])(vec{order}, {prefix}) = {{\n"
+        tables.append(f"static {prefix} (*{prefix}_derivatives[][{5-order}])(vec{order}, {prefix}) = {{\n"
                       +",\n".join(rows)+"\n};")
         cases.append(f'''
     case {order}: {{
@@ -121,7 +121,7 @@ def c_derivatives(tmp_path_factory):
         break;
     }}''')
     source = directory/"derivatives.c"
-    source.write_text('#include "src/algpy/algebras/general/multicomplex/multicomplex3.h"\n'
+    source.write_text('#include "src/algpy/algebras/general/multicomplex/multicomplex4.h"\n'
                       +"\n".join(tables)+'''
 void evaluate(int order, int function, int derivative, const double *parameters,
               const double *input, double *output)

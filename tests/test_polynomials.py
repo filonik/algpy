@@ -31,7 +31,7 @@ void roots{n}(const double *p, double *out) {{
 void coeffs{n}(const double *input, double *p) {{
     complex z[{n}];
     for (int i = 0; i < {n}; i++) {{
-        z[i] = complex_make(input[2*i], input[2*i+1]);
+        z[i] = complex_make(input + 2*i);
     }}
     poly{n}_roots_to_coeffs(z, p);
 }}

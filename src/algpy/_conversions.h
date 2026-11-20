@@ -3,6 +3,7 @@
 
 #include <Python.h>
 #include <math.h>
+#include <string.h>
 #include <numpy/arrayobject.h>
 
 /* IEEE binary16 to the native double coefficient type, without a dependency
@@ -26,6 +27,42 @@ algpy_half_to_double(npy_half value)
 
 /* Wrapper helpers. Each extension imports its own NumPy C API before these
  * functions are called. Algebra storage is N consecutive native doubles. */
+
+/* New reference to the attribute name of the module named module. */
+static inline PyObject *
+algpy_import_attribute(const char *module, const char *name)
+{
+    PyObject *imported = PyImport_ImportModule(module), *result;
+    if (imported == NULL) {
+        return NULL;
+    }
+    result = PyObject_GetAttrString(imported, name);
+    Py_DECREF(imported);
+    return result;
+}
+
+/* One-dimensional array of type's dtype holding count values copied from
+ * data, each itemsize bytes. */
+static inline PyObject *
+algpy_array_of_type(PyObject *type, const void *data, npy_intp count, size_t itemsize)
+{
+    PyObject *dtype = PyObject_GetAttrString(type, "dtype");
+    PyArrayObject *array;
+    if (dtype == NULL) {
+        return NULL;
+    }
+    if (!PyArray_DescrCheck(dtype) || (size_t)PyDataType_ELSIZE((PyArray_Descr *)dtype) != itemsize) {
+        Py_DECREF(dtype);
+        PyErr_SetString(PyExc_TypeError, "type has no matching NumPy dtype");
+        return NULL;
+    }
+    /* Steals the reference to dtype. */
+    array = (PyArrayObject *)PyArray_SimpleNewFromDescr(1, &count, (PyArray_Descr *)dtype);
+    if (array != NULL) {
+        memcpy(PyArray_DATA(array), data, (size_t)count*itemsize);
+    }
+    return (PyObject *)array;
+}
 static inline int
 algpy_set_dimension(PyObject *type, int n)
 {

@@ -15,6 +15,7 @@ typedef multicomplex1 cayleydickson1;
 #define cayleydickson1_inv multicomplex1_inv
 #define cayleydickson1_div multicomplex1_div
 #define cayleydickson1_basis multicomplex1_basis
+#define cayleydickson1_gens multicomplex1_gens
 #define cayleydickson1_coeffs multicomplex1_coeffs
 #define cayleydickson1_minpoly multicomplex1_minpoly
 #define cayleydickson1_eivals multicomplex1_eivals
@@ -70,5 +71,7 @@ typedef multicomplex1 cayleydickson1;
 #define cayleydickson1_rmat multicomplex1_rmat
 #define cayleydickson1_apply multicomplex1_apply
 
+#define cayleydickson1_grade0 multicomplex1_grade0
+#define cayleydickson1_grade1 multicomplex1_grade1
 
 #endif /* ALGPY_CAYLEYDICKSON1_H */

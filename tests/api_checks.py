@@ -10,7 +10,7 @@ import pytest
 from algpy import algebras
 
 from algpy.algebras import general
-from algebra_reference import CONCRETE
+from algebra_reference import CONCRETE, expected_norm_type
 
 
 
@@ -69,7 +69,7 @@ def check_predicates_parts_and_inverse(algebra):
 
 def check_norm_static_return_type(algebra):
     cls = algebra
-    norm_type = complex if hasattr(cls, "K") or cls.__name__.startswith("splitcomplex") else float
+    norm_type = expected_norm_type(cls)
     for value, expected in ((cls.zero(), 0), (cls.one(), 1), (cls(-2), 2)):
         norm = value.norm()
         assert type(norm) is norm_type
@@ -81,7 +81,10 @@ def check_norm_static_return_type(algebra):
         assert norm == 2
     else:
         polynomial = value.minpoly()
-        expected = complex(polynomial[0])**(1/(len(polynomial)-1))
+        degree = len(polynomial) - 1
+        # The norm is det(lmat)^(1/degree); the constant term of the generic
+        # minimal polynomial is (-1)^degree times the determinant.
+        expected = complex((-1)**degree*polynomial[0])**(1/degree)
         assert norm == pytest.approx(expected)
 
 def check_general_norm_type_does_not_follow_parameters(family, n):
@@ -129,7 +132,9 @@ def check_specialization_structure(name, n):
     for i in range(n):
         for j in range(n):
             assert_components(cls, coeffs[i, j], basis[i]*basis[j])
-    x = cls(*np.linspace(0.1, 0.3, n))
+    # Keep the spectrum near a positive real value so expanding its roots
+    # remains well conditioned, including for degree-32 polynomials.
+    x = cls(1.5, *np.linspace(0.001, 0.01, n-1))
     np.testing.assert_allclose(
         np.polynomial.Polynomial.fromroots(x.eivals()).coef,
         x.minpoly(), atol=1e-10,
@@ -144,3 +149,85 @@ def check_parameterized_ufunc_reads_current_parameters():
     assert_components(cls, np.exp(values)[0], x.exp())
     assert not np.allclose(cls.to_float(before), cls.to_float(np.exp(values)))
     assert_components(cls, np.reciprocal(values)[0], x.inv())
+
+
+def check_grade_projection(algebra):
+    """x.grade[k] keeps the coefficients whose basis index has k generator bits."""
+    cls = algebra
+    coefficients = np.linspace(0.5, 2.0, cls.N)
+    x = cls(*coefficients)
+    if cls.__name__.startswith("jet"):
+        # One generator e: grade k is the coefficient of e^k.
+        generators = cls.N - 1
+        bits = np.arange(cls.N)
+    elif cls.__name__.startswith("complex_jet"):
+        # Grade k is the complex coefficient of e^k, real components 2k, 2k+1.
+        generators = cls.N//2 - 1
+        bits = np.arange(cls.N)//2
+    else:
+        generators = cls.N.bit_length() - 1
+        bits = np.array([bin(index).count("1") for index in range(cls.N)])
+    grades = x.grade
+    assert len(grades) == generators + 1
+    total = cls.zero()
+    for k in range(generators + 1):
+        projected = grades[k]
+        assert type(projected) is cls
+        np.testing.assert_array_equal(cls.to_float(projected),
+                                      np.where(bits == k, coefficients, 0))
+        assert projected.grade[k] == projected
+        assert grades[k - generators - 1] == projected
+        total = total + projected
+    assert total == x
+    assert sum(x.grade, cls.zero()) == x
+    assert x.grade[np.int64(0)] == x.grade[0]
+    for index in (generators + 1, -generators - 2):
+        with pytest.raises(IndexError):
+            x.grade[index]
+    with pytest.raises(TypeError):
+        x.grade[0.5]
+    # Algebra values are immutable: grades are read-only.
+    with pytest.raises(TypeError):
+        x.grade[0] = x
+    with pytest.raises(TypeError):
+        del x.grade[0]
+    with pytest.raises(AttributeError):
+        x.grade = x
+    np.testing.assert_array_equal(cls.to_float(x), coefficients)
+
+
+def check_center_minpoly(algebra, parameters=None):
+    """Minimal polynomial over the centre span{1, w}, w the pseudoscalar.
+
+    General types take parameters; fixed specializations have none."""
+    cls = algebra
+    if parameters is not None:
+        cls.K = list(parameters)
+    degree = {2: 1, 8: 2, 32: 4}[cls.N]
+    w = cls.basis()[-1]
+    s = cls.to_float(w*w)[0]
+    center = cls.center
+    unit = center(0, 1)
+    assert center.N == 2 and center.to_float(unit*unit)[0] == s
+    rng = np.random.default_rng(cls.N + len(parameters or ()))
+    for x in [cls(*rng.normal(size=cls.N)), cls(1.5), w, cls.zero()]:
+        p = x.center_minpoly()
+        assert p.shape == (degree + 1,) and p.dtype == center.dtype
+        assert type(p[0]) is center and p[-1] == center(1)
+        coefficients = center.to_float(p)
+        total, power = cls.zero(), cls.one()
+        for a, b in coefficients:
+            total = total + (a + b*w)*power
+            power = power*x
+        np.testing.assert_allclose(cls.to_float(total), 0, atol=1e-11)
+        # Times its conjugate (w -> -w), it is the real generic minimal polynomial.
+        real = np.zeros(2*degree + 1)
+        for i, (a, b) in enumerate(coefficients):
+            for j, (c, d) in enumerate(coefficients):
+                real[i + j] += a*c - s*b*d
+        np.testing.assert_allclose(real, x.minpoly(), rtol=1e-12, atol=1e-12)
+    if parameters is not None:
+        cls.K = [2*k + 1 for k in parameters]
+        assert cls.center is center
+        assert center.to_float(unit*unit)[0] == cls.to_float(w*w)[0]
+        cls.K = list(parameters)

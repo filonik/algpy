@@ -3,10 +3,12 @@ from ._real import real
 from ._quaternion import quaternion
 from ._octonion import octonion
 from ._sedenion import sedenion
+from ._trigintaduonion import trigintaduonion
 
 __all__ = [
     "real",
     "quaternion",
     "octonion",
     "sedenion",
+    "trigintaduonion",
 ]

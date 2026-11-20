@@ -4,14 +4,16 @@
 numbers ``x + y*e`` with ``e*e = k``; ``multicomplex2(k0, k1)`` that of the
 numbers ``w + x*e1 + y*e2 + z*e1*e2`` with ``e1*e1 = k0`` and ``e2*e2 = k1``;
 ``multicomplex3(k0, k1, k2)`` the 8-component numbers over ``e0, e1, e2``; ``multicomplex4(k0, k1, k2, k3)`` the 16-component
-numbers over ``e0, e1, e2, e3``.
+numbers over ``e0, e1, e2, e3``; ``multicomplex5(k0, k1, k2, k3, k4)`` the
+32-component numbers over ``e0, e1, e2, e3, e4``.
 """
 from ._multicomplex1 import multicomplex1
 from ._multicomplex2 import multicomplex2
 from ._multicomplex3 import multicomplex3
 from ._multicomplex4 import multicomplex4
+from ._multicomplex5 import multicomplex5
 
-_CONSTRUCTORS = {1: multicomplex1, 2: multicomplex2, 3: multicomplex3, 4: multicomplex4}
+_CONSTRUCTORS = {1: multicomplex1, 2: multicomplex2, 3: multicomplex3, 4: multicomplex4, 5: multicomplex5}
 
 
 def multicomplex(*args):
@@ -25,4 +27,4 @@ def multicomplex(*args):
     return constructor(*args)
 
 
-__all__ = ["multicomplex", "multicomplex1", "multicomplex2", "multicomplex3", "multicomplex4"]
+__all__ = ["multicomplex", "multicomplex1", "multicomplex2", "multicomplex3", "multicomplex4", "multicomplex5"]

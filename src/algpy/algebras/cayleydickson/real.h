@@ -6,6 +6,7 @@
 #ifndef ALGPY_REAL_H
 #define ALGPY_REAL_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../fields/complex.h"
 
@@ -17,22 +18,23 @@
 typedef vec1 real;
 
 static inline real
-real_make(double x)
+real_make(const double coeffs[ALGPY_REAL_N])
 {
-    real r = {{x}};
-    return r;
+    real result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline real
 real_one(void)
 {
-    return real_make(1);
+    return real_make((const double[]){1});
 }
 
 static inline real
 real_mul(real x, real y)
 {
-    return real_make(x.data[0]*y.data[0]);
+    return real_make((const double[]){x.data[0]*y.data[0]});
 }
 
 static inline double
@@ -50,20 +52,20 @@ real_norm(real a)
 static inline real
 real_inv(real a)
 {
-    return real_make(1/a.data[0]);
+    return real_make((const double[]){1/a.data[0]});
 }
 
 static inline real
 real_div(real a, real b)
 {
-    return real_make(a.data[0]/b.data[0]);
+    return real_make((const double[]){a.data[0]/b.data[0]});
 }
 
 /* Common algebra API. */
 static inline real
 real_from_re(double a)
 {
-    return real_make(a);
+    return real_make((const double[]){a});
 }
 
 static inline double
@@ -141,91 +143,91 @@ real_conjugate(real a)
 static inline real
 real_exp(real a)
 {
-    return real_make(exp(a.data[0]));
+    return real_make((const double[]){exp(a.data[0])});
 }
 
 static inline real
 real_log(real a)
 {
-    return real_make(log(a.data[0]));
+    return real_make((const double[]){log(a.data[0])});
 }
 
 static inline real
 real_sqrt(real a)
 {
-    return real_make(sqrt(a.data[0]));
+    return real_make((const double[]){sqrt(a.data[0])});
 }
 
 static inline real
 real_cos(real a)
 {
-    return real_make(cos(a.data[0]));
+    return real_make((const double[]){cos(a.data[0])});
 }
 
 static inline real
 real_sin(real a)
 {
-    return real_make(sin(a.data[0]));
+    return real_make((const double[]){sin(a.data[0])});
 }
 
 static inline real
 real_tan(real a)
 {
-    return real_make(tan(a.data[0]));
+    return real_make((const double[]){tan(a.data[0])});
 }
 
 static inline real
 real_acos(real a)
 {
-    return real_make(acos(a.data[0]));
+    return real_make((const double[]){acos(a.data[0])});
 }
 
 static inline real
 real_asin(real a)
 {
-    return real_make(asin(a.data[0]));
+    return real_make((const double[]){asin(a.data[0])});
 }
 
 static inline real
 real_atan(real a)
 {
-    return real_make(atan(a.data[0]));
+    return real_make((const double[]){atan(a.data[0])});
 }
 
 static inline real
 real_cosh(real a)
 {
-    return real_make(cosh(a.data[0]));
+    return real_make((const double[]){cosh(a.data[0])});
 }
 
 static inline real
 real_sinh(real a)
 {
-    return real_make(sinh(a.data[0]));
+    return real_make((const double[]){sinh(a.data[0])});
 }
 
 static inline real
 real_tanh(real a)
 {
-    return real_make(tanh(a.data[0]));
+    return real_make((const double[]){tanh(a.data[0])});
 }
 
 static inline real
 real_acosh(real a)
 {
-    return real_make(acosh(a.data[0]));
+    return real_make((const double[]){acosh(a.data[0])});
 }
 
 static inline real
 real_asinh(real a)
 {
-    return real_make(asinh(a.data[0]));
+    return real_make((const double[]){asinh(a.data[0])});
 }
 
 static inline real
 real_atanh(real a)
 {
-    return real_make(atanh(a.data[0]));
+    return real_make((const double[]){atanh(a.data[0])});
 }
 
 /* Integer powers by squaring; negative exponents invert the base once. */
@@ -266,7 +268,7 @@ real_ipow(real a, int64_t b)
 static inline real
 real_rpow(real a, real b)
 {
-    return real_make(double_pow(a.data[0], b.data[0]));
+    return real_make((const double[]){double_pow(a.data[0], b.data[0])});
 }
 
 static inline real
@@ -350,13 +352,13 @@ real_lpows(real a, double b)
 static inline real
 real_expm1(real a)
 {
-    return real_make(double_expm1(a.data[0]));
+    return real_make((const double[]){double_expm1(a.data[0])});
 }
 
 static inline real
 real_log1p(real a)
 {
-    return real_make(double_log1p(a.data[0]));
+    return real_make((const double[]){double_log1p(a.data[0])});
 }
 
 static inline real
@@ -370,6 +372,12 @@ static inline void
 real_basis(real result[1])
 {
     result[0] = real_one();
+}
+
+static inline void
+real_gens(real *result)
+{
+    (void)result;
 }
 
 static inline void
@@ -425,5 +433,13 @@ real_rmat(real a, double result[ALGPY_REAL_N*ALGPY_REAL_N])
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline real
+real_grade0(real a)
+{
+    const double *x = a.data;
+    return real_make((const double[]){x[0]});
+}
 
 #endif /* ALGPY_REAL_H */

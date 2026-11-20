@@ -9,6 +9,7 @@
 
 #define ALGPY_MULTICOMPLEX1_N 2
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -24,28 +25,29 @@
 typedef vec2 multicomplex1;
 
 static inline multicomplex1
-multicomplex1_make(double x, double x0)
+multicomplex1_make(const double coeffs[ALGPY_MULTICOMPLEX1_N])
 {
-    multicomplex1 r = {{x, x0}};
-    return r;
+    multicomplex1 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline multicomplex1
 multicomplex1_re(multicomplex1 a)
 {
-    return multicomplex1_make(a.data[0], 0);
+    return multicomplex1_make((const double[]){a.data[0], 0});
 }
 
 static inline multicomplex1
 multicomplex1_im(multicomplex1 a)
 {
-    return multicomplex1_make(0, a.data[1]);
+    return multicomplex1_make((const double[]){0, a.data[1]});
 }
 
 static inline multicomplex1
 multicomplex1_from_re(double a)
 {
-    return multicomplex1_make(a, 0);
+    return multicomplex1_make((const double[]){a, 0});
 }
 
 static inline double
@@ -69,16 +71,22 @@ multicomplex1_mul(vec1 k, multicomplex1 x, multicomplex1 y)
     if (vec2_is_real(x)) {
         return vec2_scale(y, x.data[0]);
     }
-    return multicomplex1_make(
+    return multicomplex1_make((const double[]){
         x.data[0]*y.data[0] + k.data[0]*x.data[1]*y.data[1],
-        x.data[0]*y.data[1] + x.data[1]*y.data[0]);
+        x.data[0]*y.data[1] + x.data[1]*y.data[0]});
 }
 
 static inline void
 multicomplex1_basis(multicomplex1 result[ALGPY_MULTICOMPLEX1_N])
 {
-    result[0] = multicomplex1_make(1, 0);
-    result[1] = multicomplex1_make(0, 1);
+    result[0] = multicomplex1_make((const double[]){1, 0});
+    result[1] = multicomplex1_make((const double[]){0, 1});
+}
+
+static inline void
+multicomplex1_gens(multicomplex1 result[1])
+{
+    result[0] = multicomplex1_make((const double[]){0, 1});
 }
 
 static inline void
@@ -100,7 +108,7 @@ multicomplex1_coeffs(
 static inline multicomplex1
 multicomplex1_conjugate(multicomplex1 a)
 {
-    return multicomplex1_make(a.data[0], -a.data[1]);
+    return multicomplex1_make((const double[]){a.data[0], -a.data[1]});
 }
 
 /* Norm a*conj(a) = x^2 - k*y^2 */
@@ -114,7 +122,7 @@ static inline multicomplex1
 multicomplex1_inv(vec1 k, multicomplex1 a)
 {
     double n = multicomplex1_norm2(k, a);
-    return multicomplex1_make(a.data[0] / n, -a.data[1] / n);
+    return multicomplex1_make((const double[]){a.data[0] / n, -a.data[1] / n});
 }
 
 static inline multicomplex1
@@ -135,15 +143,15 @@ multicomplex1_apply(vec1 k, multicomplex1 a, double (*f)(double), double (*deriv
         return dual1_apply(a, f, deriv1);
     }
     double s = sqrt(fabs(k.data[0]));
-    complex value = complex_make(a.data[0], s*a.data[1]);
+    complex value = complex_make((const double[]){a.data[0], s*a.data[1]});
     if (k.data[0] > 0) {
         value = splitcomplex1_apply(value, f);
     } else if (k.data[0] < 0) {
         value = cf(value);
     } else {
-        return multicomplex1_make(NAN, NAN);
+        return multicomplex1_make((const double[]){NAN, NAN});
     }
-    return multicomplex1_make(value.data[0], value.data[1]/s);
+    return multicomplex1_make((const double[]){value.data[0], value.data[1]/s});
 }
 
 static inline multicomplex1
@@ -224,17 +232,17 @@ multicomplex1_rpow(vec1 k, multicomplex1 a, multicomplex1 b)
         return dual1_rpow(a, b);
     }
     double s = sqrt(fabs(k.data[0]));
-    complex x = complex_make(a.data[0], s*a.data[1]);
-    complex y = complex_make(b.data[0], s*b.data[1]);
+    complex x = complex_make((const double[]){a.data[0], s*a.data[1]});
+    complex y = complex_make((const double[]){b.data[0], s*b.data[1]});
     complex result;
     if (k.data[0] > 0) {
         result = splitcomplex1_rpow(x, y);
     } else if (k.data[0] < 0) {
         result = complex_rpow(x, y);
     } else {
-        return multicomplex1_make(NAN, NAN);
+        return multicomplex1_make((const double[]){NAN, NAN});
     }
-    return multicomplex1_make(result.data[0], result.data[1]/s);
+    return multicomplex1_make((const double[]){result.data[0], result.data[1]/s});
 }
 
 static inline multicomplex1
@@ -544,10 +552,10 @@ static inline void
 multicomplex1_eivals(vec1 k, multicomplex1 a, complex result[2])
 {
     complex s = complex_sqrt_real(k.data[0]);
-    complex t = complex_make(a.data[1], 0);
+    complex t = complex_make((const double[]){a.data[1], 0});
     complex d = complex_mul(t, s);
-    result[0] = complex_make(a.data[0] - d.data[0], -d.data[1]);
-    result[1] = complex_make(a.data[0] + d.data[0], +d.data[1]);
+    result[0] = complex_make((const double[]){a.data[0] - d.data[0], -d.data[1]});
+    result[1] = complex_make((const double[]){a.data[0] + d.data[0], +d.data[1]});
 }
 
 /* Common algebra API. */
@@ -611,7 +619,7 @@ multicomplex1_norm(vec1 k, multicomplex1 a)
     return complex_root_real(multicomplex1_norm2(k, a), 2);
 }
 
-/* Derivatives through order 3, for nilpotent extensions at higher levels. */
+/* Derivatives through order 4, for nilpotent extensions at higher levels. */
 static inline multicomplex1
 multicomplex1_exp_deriv1(vec1 k, multicomplex1 a)
 {
@@ -628,6 +636,12 @@ static inline multicomplex1
 multicomplex1_exp_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_exp_deriv3, double_exp_deriv4, complex_exp_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_exp_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_exp_deriv4, double_exp_deriv5, complex_exp_deriv4);
 }
 
 static inline multicomplex1
@@ -649,6 +663,12 @@ multicomplex1_expm1_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_expm1_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_expm1_deriv4, double_expm1_deriv5, complex_expm1_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_log_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_log_deriv1, double_log_deriv2, complex_log_deriv1);
@@ -664,6 +684,12 @@ static inline multicomplex1
 multicomplex1_log_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_log_deriv3, double_log_deriv4, complex_log_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_log_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_log_deriv4, double_log_deriv5, complex_log_deriv4);
 }
 
 static inline multicomplex1
@@ -685,6 +711,12 @@ multicomplex1_log1p_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_log1p_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_log1p_deriv4, double_log1p_deriv5, complex_log1p_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_inv_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_inv_deriv1, double_inv_deriv2, complex_inv_deriv1);
@@ -700,6 +732,12 @@ static inline multicomplex1
 multicomplex1_inv_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_inv_deriv3, double_inv_deriv4, complex_inv_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_inv_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_inv_deriv4, double_inv_deriv5, complex_inv_deriv4);
 }
 
 static inline multicomplex1
@@ -721,6 +759,12 @@ multicomplex1_square_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_square_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_square_deriv4, double_square_deriv5, complex_square_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_sqrt_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_sqrt_deriv1, double_sqrt_deriv2, complex_sqrt_deriv1);
@@ -736,6 +780,12 @@ static inline multicomplex1
 multicomplex1_sqrt_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_sqrt_deriv3, double_sqrt_deriv4, complex_sqrt_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_sqrt_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_sqrt_deriv4, double_sqrt_deriv5, complex_sqrt_deriv4);
 }
 
 static inline multicomplex1
@@ -757,6 +807,12 @@ multicomplex1_sin_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_sin_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_sin_deriv4, double_sin_deriv5, complex_sin_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_cos_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_cos_deriv1, double_cos_deriv2, complex_cos_deriv1);
@@ -772,6 +828,12 @@ static inline multicomplex1
 multicomplex1_cos_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_cos_deriv3, double_cos_deriv4, complex_cos_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_cos_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_cos_deriv4, double_cos_deriv5, complex_cos_deriv4);
 }
 
 static inline multicomplex1
@@ -793,6 +855,12 @@ multicomplex1_tan_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_tan_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_tan_deriv4, double_tan_deriv5, complex_tan_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_asin_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_asin_deriv1, double_asin_deriv2, complex_asin_deriv1);
@@ -808,6 +876,12 @@ static inline multicomplex1
 multicomplex1_asin_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_asin_deriv3, double_asin_deriv4, complex_asin_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_asin_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_asin_deriv4, double_asin_deriv5, complex_asin_deriv4);
 }
 
 static inline multicomplex1
@@ -829,6 +903,12 @@ multicomplex1_acos_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_acos_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_acos_deriv4, double_acos_deriv5, complex_acos_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_atan_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_atan_deriv1, double_atan_deriv2, complex_atan_deriv1);
@@ -844,6 +924,12 @@ static inline multicomplex1
 multicomplex1_atan_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_atan_deriv3, double_atan_deriv4, complex_atan_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_atan_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_atan_deriv4, double_atan_deriv5, complex_atan_deriv4);
 }
 
 static inline multicomplex1
@@ -865,6 +951,12 @@ multicomplex1_sinh_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_sinh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_sinh_deriv4, double_sinh_deriv5, complex_sinh_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_cosh_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_cosh_deriv1, double_cosh_deriv2, complex_cosh_deriv1);
@@ -880,6 +972,12 @@ static inline multicomplex1
 multicomplex1_cosh_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_cosh_deriv3, double_cosh_deriv4, complex_cosh_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_cosh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_cosh_deriv4, double_cosh_deriv5, complex_cosh_deriv4);
 }
 
 static inline multicomplex1
@@ -901,6 +999,12 @@ multicomplex1_tanh_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_tanh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_tanh_deriv4, double_tanh_deriv5, complex_tanh_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_asinh_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_asinh_deriv1, double_asinh_deriv2, complex_asinh_deriv1);
@@ -916,6 +1020,12 @@ static inline multicomplex1
 multicomplex1_asinh_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_asinh_deriv3, double_asinh_deriv4, complex_asinh_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_asinh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_asinh_deriv4, double_asinh_deriv5, complex_asinh_deriv4);
 }
 
 static inline multicomplex1
@@ -937,6 +1047,12 @@ multicomplex1_acosh_deriv3(vec1 k, multicomplex1 a)
 }
 
 static inline multicomplex1
+multicomplex1_acosh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_acosh_deriv4, double_acosh_deriv5, complex_acosh_deriv4);
+}
+
+static inline multicomplex1
 multicomplex1_atanh_deriv1(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_atanh_deriv1, double_atanh_deriv2, complex_atanh_deriv1);
@@ -952,6 +1068,12 @@ static inline multicomplex1
 multicomplex1_atanh_deriv3(vec1 k, multicomplex1 a)
 {
     return multicomplex1_apply(k, a, double_atanh_deriv3, double_atanh_deriv4, complex_atanh_deriv3);
+}
+
+static inline multicomplex1
+multicomplex1_atanh_deriv4(vec1 k, multicomplex1 a)
+{
+    return multicomplex1_apply(k, a, double_atanh_deriv4, double_atanh_deriv5, complex_atanh_deriv4);
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
@@ -988,5 +1110,20 @@ multicomplex1_rmat(vec1 k, multicomplex1 a, double result[ALGPY_MULTICOMPLEX1_N*
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline multicomplex1
+multicomplex1_grade0(multicomplex1 a)
+{
+    const double *x = a.data;
+    return multicomplex1_make((const double[]){x[0], 0});
+}
+
+static inline multicomplex1
+multicomplex1_grade1(multicomplex1 a)
+{
+    const double *x = a.data;
+    return multicomplex1_make((const double[]){0, x[1]});
+}
 
 #endif /* ALGPY_MULTICOMPLEX1_H */

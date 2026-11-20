@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "splitcomplex1.h"
 
@@ -53,7 +54,7 @@ splitcomplex1_from_object(PyObject *o, splitcomplex1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = splitcomplex1_make(d, 0);
+        *out = splitcomplex1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -67,7 +68,7 @@ pysplitcomplex1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &re, &im)) {
         return NULL;
     }
-    return PySplitcomplex1_FromValue(type, splitcomplex1_make(re, im));
+    return PySplitcomplex1_FromValue(type, splitcomplex1_make((const double[]){re, im}));
 }
 
 static PyObject *
@@ -313,6 +314,21 @@ pysplitcomplex1_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pysplitcomplex1_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_splitcomplex1);
+    splitcomplex1 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (splitcomplex1 *)PyArray_DATA(arr);
+    splitcomplex1_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pysplitcomplex1_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {2, 2};
@@ -426,7 +442,10 @@ pysplitcomplex1_imag(PyObject *self, void *closure)
     return pysplitcomplex1_im(self, NULL);
 }
 
+static PyObject *pysplitcomplex1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pysplitcomplex1_getset[] = {
+    {"grade", pysplitcomplex1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pysplitcomplex1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pysplitcomplex1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -532,6 +551,27 @@ pysplitcomplex1_ipow(PyObject *self, PyObject *arg)
     return PySplitcomplex1_FromValue(Py_TYPE(self), splitcomplex1_ipow(((PySplitcomplex1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pysplitcomplex1_grade(PyObject *self, Py_ssize_t k)
+{
+    splitcomplex1 v = ((PySplitcomplex1 *)self)->v;
+    switch (k) {
+        case 0:
+            return PySplitcomplex1_FromValue(Py_TYPE(self), splitcomplex1_grade0(v));
+        case 1:
+            return PySplitcomplex1_FromValue(Py_TYPE(self), splitcomplex1_grade1(v));
+        default:
+            return PySplitcomplex1_FromValue(Py_TYPE(self), splitcomplex1_zero());
+    }
+}
+
+static PyObject *
+pysplitcomplex1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pysplitcomplex1_grade, 2);
+}
+
 static PyMethodDef pysplitcomplex1_methods[] = {
     {"to_float", (PyCFunction)pysplitcomplex1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysplitcomplex1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -564,6 +604,7 @@ static PyMethodDef pysplitcomplex1_methods[] = {
     {"zero", pysplitcomplex1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pysplitcomplex1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pysplitcomplex1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pysplitcomplex1_norm2, METH_NOARGS, "Squared norm."},
     {"norm", pysplitcomplex1_norm, METH_NOARGS, "Norm as a Python complex."},
@@ -782,7 +823,7 @@ static PyArray_DescrProto pysplitcomplex1_descr_proto = {
         splitcomplex1 *dst = (splitcomplex1 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = splitcomplex1_make(convert(src[i]), 0);                      \
+            dst[i] = splitcomplex1_make((const double[]){convert(src[i]), 0});                      \
         }                                                                    \
     }
 

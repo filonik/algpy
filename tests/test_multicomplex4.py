@@ -6,7 +6,7 @@ import pytest
 from algpy import algebras
 from field_reference import FUNCTIONS
 from multicomplex_reference import (scalar_type, scaled, expected, coefficients,
-                                    multiply, check_standalone_header_and_apply)
+                                    multiply, c_derivatives, check_standalone_header_and_apply)
 import basic_checks as basic
 import api_checks as api
 import conversion_checks as conversions
@@ -128,6 +128,19 @@ def test_complex_continuation(parameters, name, function):
                                rtol=3e-9, atol=3e-10)
 
 
+@pytest.mark.parametrize("offset", [1])
+@pytest.mark.parametrize("index,name,function", [(i, name, f) for i, (name, f) in enumerate(FUNCTIONS)],
+                         ids=[name for name, _ in FUNCTIONS])
+def test_derivative_helpers(c_derivatives, offset, index, name, function):
+    order = 4
+    for signs in itertools.product([-1, 0, 1], repeat=order):
+        parameters = scaled(signs)
+        row = coefficients(parameters, name)
+        wanted = expected(parameters, function, row, offset)
+        actual = c_derivatives(parameters, index, offset, row)
+        np.testing.assert_allclose(actual, wanted, rtol=3e-9, atol=3e-10)
+
+
 def test_standalone_header_and_apply(tmp_path):
     check_standalone_header_and_apply(4, tmp_path)
 
@@ -161,6 +174,12 @@ def test_basic_norm(common_algebra):
 def test_basic_minpoly_eivals(common_algebra):
     basic.check_minpoly_eivals(common_algebra)
 
+@pytest.mark.parametrize("parameters", [(-1, -1, -1, -1), (1, 1, 1, 1), (0, 0, 0, 0), (0, -2, 0.5, -1.5)], ids=str)
+def test_basic_gens(common_algebra, parameters):
+    if parameters is not None:
+        common_algebra.K = parameters
+    basic.check_gens(common_algebra)
+
 def test_basic_basis(common_algebra):
     basic.check_basis(common_algebra)
 
@@ -183,6 +202,9 @@ def test_api_binary_cast_broadcast_and_operator(common_algebra, name):
 
 def test_api_predicates_parts_and_inverse(common_algebra):
     api.check_predicates_parts_and_inverse(common_algebra)
+
+def test_api_grade_projection(common_algebra):
+    api.check_grade_projection(common_algebra)
 
 def test_api_norm_static_return_type(common_algebra):
     api.check_norm_static_return_type(common_algebra)

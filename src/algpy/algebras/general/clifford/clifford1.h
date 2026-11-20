@@ -15,6 +15,7 @@ typedef cayleydickson1 clifford1;
 #define clifford1_inv cayleydickson1_inv
 #define clifford1_div cayleydickson1_div
 #define clifford1_basis cayleydickson1_basis
+#define clifford1_gens cayleydickson1_gens
 #define clifford1_coeffs cayleydickson1_coeffs
 #define clifford1_minpoly cayleydickson1_minpoly
 #define clifford1_eivals cayleydickson1_eivals
@@ -69,5 +70,26 @@ typedef cayleydickson1 clifford1;
 #define clifford1_lmat cayleydickson1_lmat
 #define clifford1_rmat cayleydickson1_rmat
 
+#define clifford1_grade0 cayleydickson1_grade0
+#define clifford1_grade1 cayleydickson1_grade1
+
+/* Square of the pseudoscalar w = e0. */
+static inline double
+clifford1_pseudoscalar_square(vec1 k)
+{
+    return k.data[0];
+}
+
+/*
+ * Minimal polynomial over the centre, which is the whole commutative algebra
+ * span{1, w}, w = e0: p[0] + p[1]*a = 0 with p[0] = -a and p[1] = 1.
+ */
+static inline void
+clifford1_center_minpoly(vec1 k, clifford1 a, clifford1 p[2])
+{
+    (void)k;
+    p[0] = clifford1_neg(a);
+    p[1] = clifford1_one();
+}
 
 #endif /* ALGPY_CLIFFORD1_H */

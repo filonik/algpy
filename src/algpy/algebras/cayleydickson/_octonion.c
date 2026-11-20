@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "octonion.h"
 
@@ -68,7 +69,7 @@ pyoctonion_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7])) {
         return NULL;
     }
-    return PyOctonion_FromValue(type, octonion_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]));
+    return PyOctonion_FromValue(type, octonion_make(d));
 }
 
 static PyObject *
@@ -310,6 +311,21 @@ pyoctonion_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pyoctonion_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_octonion);
+    octonion *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (octonion *)PyArray_DATA(arr);
+    octonion_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pyoctonion_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {8, 8};
@@ -446,7 +462,10 @@ pyoctonion_imag(PyObject *self, void *closure)
     return pyoctonion_im(self, NULL);
 }
 
+static PyObject *pyoctonion_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pyoctonion_getset[] = {
+    {"grade", pyoctonion_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pyoctonion_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pyoctonion_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -552,6 +571,31 @@ pyoctonion_ipow(PyObject *self, PyObject *arg)
     return NEW_OCTONION(octonion_ipow(((PyOctonion *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pyoctonion_grade(PyObject *self, Py_ssize_t k)
+{
+    octonion v = ((PyOctonion *)self)->v;
+    switch (k) {
+        case 0:
+            return PyOctonion_FromValue(Py_TYPE(self), octonion_grade0(v));
+        case 1:
+            return PyOctonion_FromValue(Py_TYPE(self), octonion_grade1(v));
+        case 2:
+            return PyOctonion_FromValue(Py_TYPE(self), octonion_grade2(v));
+        case 3:
+            return PyOctonion_FromValue(Py_TYPE(self), octonion_grade3(v));
+        default:
+            return PyOctonion_FromValue(Py_TYPE(self), octonion_zero());
+    }
+}
+
+static PyObject *
+pyoctonion_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pyoctonion_grade, 4);
+}
+
 static PyMethodDef pyoctonion_methods[] = {
     {"to_float", (PyCFunction)pyoctonion_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pyoctonion_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -586,6 +630,7 @@ static PyMethodDef pyoctonion_methods[] = {
     {"zero", pyoctonion_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pyoctonion_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pyoctonion_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pyoctonion_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pyoctonion_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pyoctonion_norm, METH_NOARGS, "Norm as a Python float."},
     {"lpow", pyoctonion_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

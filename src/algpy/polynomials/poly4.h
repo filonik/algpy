@@ -57,10 +57,10 @@ poly4_coeffs_to_roots(const double p[ALGPY_POLY4_N+1], complex result[ALGPY_POLY
         poly2_coeffs_to_roots(quadratic, squares);
         u = complex_sqrt(squares[0]);
         v = complex_sqrt(squares[1]);
-        result[0] = complex_make(u.data[0]-shift, u.data[1]);
-        result[1] = complex_make(-u.data[0]-shift, -u.data[1]);
-        result[2] = complex_make(v.data[0]-shift, v.data[1]);
-        result[3] = complex_make(-v.data[0]-shift, -v.data[1]);
+        result[0] = complex_make((const double[]){u.data[0]-shift, u.data[1]});
+        result[1] = complex_make((const double[]){-u.data[0]-shift, -u.data[1]});
+        result[2] = complex_make((const double[]){v.data[0]-shift, v.data[1]});
+        result[3] = complex_make((const double[]){-v.data[0]-shift, -v.data[1]});
     }
     else {
         /* m = s^2: m^3 + 2*pp*m^2 + (pp^2 - 4*rr)*m - qq^2 = 0. */

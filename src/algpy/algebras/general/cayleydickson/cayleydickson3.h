@@ -8,6 +8,7 @@
 
 #define ALGPY_CAYLEYDICKSON3_N 8
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -21,30 +22,30 @@
 typedef vec8 cayleydickson3;
 
 static inline cayleydickson3
-cayleydickson3_make(double x, double x0, double x1, double x01,
-                    double x2, double x02, double x12, double x012)
+cayleydickson3_make(const double coeffs[ALGPY_CAYLEYDICKSON3_N])
 {
-    cayleydickson3 r = {{x, x0, x1, x01, x2, x02, x12, x012}};
-    return r;
+    cayleydickson3 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline cayleydickson3
 cayleydickson3_re(cayleydickson3 a)
 {
-    return cayleydickson3_make(a.data[0], 0, 0, 0, 0, 0, 0, 0);
+    return cayleydickson3_make((const double[]){a.data[0], 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline cayleydickson3
 cayleydickson3_im(cayleydickson3 a)
 {
-    return cayleydickson3_make(0, a.data[1], a.data[2], a.data[3],
-                               a.data[4], a.data[5], a.data[6], a.data[7]);
+    return cayleydickson3_make((const double[]){0, a.data[1], a.data[2], a.data[3],
+                               a.data[4], a.data[5], a.data[6], a.data[7]});
 }
 
 static inline cayleydickson3
 cayleydickson3_from_re(double a)
 {
-    return cayleydickson3_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return cayleydickson3_make((const double[ALGPY_CAYLEYDICKSON3_N]){a});
 }
 
 static inline double
@@ -78,10 +79,10 @@ cayleydickson3_mul(vec3 k, cayleydickson3 a, cayleydickson3 b)
     cayleydickson2 right = vec4_add(
         cayleydickson2_mul(k01, y1, x0),
         cayleydickson2_mul(k01, x1, cayleydickson2_conjugate(y0)));
-    return cayleydickson3_make(left.data[0], left.data[1],
-                               left.data[2], left.data[3],
-                               right.data[0], right.data[1],
-                               right.data[2], right.data[3]);
+    cayleydickson3 result;
+    memcpy(result.data, left.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_CAYLEYDICKSON3_N/2, right.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline cayleydickson3
@@ -131,6 +132,14 @@ cayleydickson3_basis(cayleydickson3 result[ALGPY_CAYLEYDICKSON3_N])
 }
 
 static inline void
+cayleydickson3_gens(cayleydickson3 result[3])
+{
+    result[0] = cayleydickson3_make((const double[ALGPY_CAYLEYDICKSON3_N]){[1] = 1});
+    result[1] = cayleydickson3_make((const double[ALGPY_CAYLEYDICKSON3_N]){[2] = 1});
+    result[2] = cayleydickson3_make((const double[ALGPY_CAYLEYDICKSON3_N]){[4] = 1});
+}
+
+static inline void
 cayleydickson3_coeffs(
     vec3 k,
     cayleydickson3 result[ALGPY_CAYLEYDICKSON3_N *
@@ -159,8 +168,8 @@ static inline void
 cayleydickson3_eivals(vec3 k, cayleydickson3 a, complex result[2])
 {
     complex s = complex_sqrt_real(-cayleydickson3_norm2(k, cayleydickson3_im(a)));
-    result[0] = complex_make(a.data[0] - s.data[0], -s.data[1]);
-    result[1] = complex_make(a.data[0] + s.data[0], +s.data[1]);
+    result[0] = complex_make((const double[]){a.data[0] - s.data[0], -s.data[1]});
+    result[1] = complex_make((const double[]){a.data[0] + s.data[0], +s.data[1]});
 }
 
 /* Common algebra API. */
@@ -247,7 +256,7 @@ cayleydickson3_real_slice(vec3 k, complex value)
             return result;
         }
     }
-    return cayleydickson3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson3
@@ -260,14 +269,14 @@ cayleydickson3_apply(vec3 k, cayleydickson3 a,
         return octonion_apply(a, cf);
     }
     if (vec8_is_real(a)) {
-        return cayleydickson3_real_slice(k, cf(complex_make(w, 0)));
+        return cayleydickson3_real_slice(k, cf(complex_make((const double[]){w, 0})));
     }
     q = -cayleydickson3_norm2(k, cayleydickson3_im(a));
     if (q < 0) {
         complex value;
         cayleydickson3 result;
         radius = sqrt(-q);
-        value = cf(complex_make(w, radius));
+        value = cf(complex_make((const double[]){w, radius}));
         result.data[0] = value.data[0];
         for (i = 1; i < ALGPY_CAYLEYDICKSON3_N; i++) {
             result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
@@ -279,7 +288,7 @@ cayleydickson3_apply(vec3 k, cayleydickson3 a,
         plus = f(w + radius);
         minus = f(w - radius);
         if (isnan(plus) || isnan(minus)) {
-            return cayleydickson3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+            return cayleydickson3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
         }
         /* Native real functions have a smooth derivative limit when the
          * roots nearly coincide. Respect their nearest branch point or pole. */
@@ -329,7 +338,7 @@ cayleydickson3_apply(vec3 k, cayleydickson3 a,
             return cayleydickson3_slice(a, real, scale);
         }
     }
-    return cayleydickson3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson3
@@ -488,14 +497,14 @@ cayleydickson3_lpows(vec3 k, cayleydickson3 a, double b)
         if (!isnan(real)) {
             return cayleydickson3_from_re(real);
         }
-        return cayleydickson3_real_slice(k, complex_lpows(complex_make(w, 0), b));
+        return cayleydickson3_real_slice(k, complex_lpows(complex_make((const double[]){w, 0}), b));
     }
     q = -cayleydickson3_norm2(k, cayleydickson3_im(a));
     if (q < 0) {
         complex value;
         cayleydickson3 result;
         radius = sqrt(-q);
-        value = complex_lpows(complex_make(w, radius), b);
+        value = complex_lpows(complex_make((const double[]){w, radius}), b);
         result.data[0] = value.data[0];
         for (i = 1; i < ALGPY_CAYLEYDICKSON3_N; i++) {
             result.data[i] = a.data[i] == 0 ? 0 : (a.data[i]/radius)*value.data[1];
@@ -507,7 +516,7 @@ cayleydickson3_lpows(vec3 k, cayleydickson3 a, double b)
         plus = pow(w + radius, b);
         minus = pow(w - radius, b);
         if (isnan(plus) || isnan(minus)) {
-            return cayleydickson3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+            return cayleydickson3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
         }
         if (radius < 1e-8*fabs(w)/fmax(1, fabs(b))) {
             real = pow(w, b);
@@ -527,7 +536,7 @@ cayleydickson3_lpows(vec3 k, cayleydickson3 a, double b)
             return cayleydickson3_slice(a, real, scale);
         }
     }
-    return cayleydickson3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return cayleydickson3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 static inline cayleydickson3
@@ -666,5 +675,34 @@ cayleydickson3_rmat(vec3 k, cayleydickson3 a, double result[ALGPY_CAYLEYDICKSON3
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline cayleydickson3
+cayleydickson3_grade0(cayleydickson3 a)
+{
+    const double *x = a.data;
+    return cayleydickson3_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline cayleydickson3
+cayleydickson3_grade1(cayleydickson3 a)
+{
+    const double *x = a.data;
+    return cayleydickson3_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
+}
+
+static inline cayleydickson3
+cayleydickson3_grade2(cayleydickson3 a)
+{
+    const double *x = a.data;
+    return cayleydickson3_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
+}
+
+static inline cayleydickson3
+cayleydickson3_grade3(cayleydickson3 a)
+{
+    const double *x = a.data;
+    return cayleydickson3_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
+}
 
 #endif /* ALGPY_CAYLEYDICKSON3_H */

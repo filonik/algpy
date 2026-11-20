@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "dual3.h"
 
@@ -68,7 +69,7 @@ pydual3_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7])) {
         return NULL;
     }
-    return PyDual3_FromValue(type, dual3_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]));
+    return PyDual3_FromValue(type, dual3_make(d));
 }
 
 static PyObject *
@@ -310,6 +311,21 @@ pydual3_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pydual3_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_dual3);
+    dual3 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (dual3 *)PyArray_DATA(arr);
+    dual3_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pydual3_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {8, 8};
@@ -446,7 +462,10 @@ pydual3_imag(PyObject *self, void *closure)
     return pydual3_im(self, NULL);
 }
 
+static PyObject *pydual3_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pydual3_getset[] = {
+    {"grade", pydual3_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pydual3_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pydual3_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -552,6 +571,31 @@ pydual3_ipow(PyObject *self, PyObject *arg)
     return NEW_DUAL3(dual3_ipow(((PyDual3 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pydual3_grade(PyObject *self, Py_ssize_t k)
+{
+    dual3 v = ((PyDual3 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyDual3_FromValue(Py_TYPE(self), dual3_grade0(v));
+        case 1:
+            return PyDual3_FromValue(Py_TYPE(self), dual3_grade1(v));
+        case 2:
+            return PyDual3_FromValue(Py_TYPE(self), dual3_grade2(v));
+        case 3:
+            return PyDual3_FromValue(Py_TYPE(self), dual3_grade3(v));
+        default:
+            return PyDual3_FromValue(Py_TYPE(self), dual3_zero());
+    }
+}
+
+static PyObject *
+pydual3_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pydual3_grade, 4);
+}
+
 static PyMethodDef pydual3_methods[] = {
     {"to_float", (PyCFunction)pydual3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pydual3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -586,6 +630,7 @@ static PyMethodDef pydual3_methods[] = {
     {"zero", pydual3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pydual3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pydual3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pydual3_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pydual3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pydual3_norm, METH_NOARGS, "Norm as a Python float."},
     {"lpow", pydual3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

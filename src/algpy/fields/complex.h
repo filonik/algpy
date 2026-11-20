@@ -32,28 +32,29 @@ typedef double _Complex algpy_native_complex;
 typedef vec2 complex;
 
 static inline complex
-complex_make(double x, double y)
+complex_make(const double coeffs[ALGPY_COMPLEX_N])
 {
-    complex r = {{x, y}};
-    return r;
+    complex result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline complex
 complex_re(complex a)
 {
-    return complex_make(a.data[0], 0);
+    return complex_make((const double[]){a.data[0], 0});
 }
 
 static inline complex
 complex_im(complex a)
 {
-    return complex_make(0, a.data[1]);
+    return complex_make((const double[]){0, a.data[1]});
 }
 
 static inline complex
 complex_from_re(double a)
 {
-    return complex_make(a, 0);
+    return complex_make((const double[]){a, 0});
 }
 
 static inline double
@@ -71,9 +72,9 @@ complex_one(void)
 static inline complex
 complex_mul(complex x, complex y)
 {
-    return complex_make(
+    return complex_make((const double[]){
         x.data[0]*y.data[0] - x.data[1]*y.data[1],
-        x.data[0]*y.data[1] + x.data[1]*y.data[0]);
+        x.data[0]*y.data[1] + x.data[1]*y.data[0]});
 }
 
 static inline void
@@ -85,6 +86,12 @@ complex_basis(complex result[ALGPY_COMPLEX_N])
             result[i].data[j] = i == j ? 1 : 0;
         }
     }
+}
+
+static inline void
+complex_gens(complex result[1])
+{
+    result[0] = complex_make((const double[]){0, 1});
 }
 
 static inline void
@@ -105,7 +112,7 @@ complex_coeffs(
 static inline complex
 complex_conjugate(complex a)
 {
-    return complex_make(a.data[0], -a.data[1]);
+    return complex_make((const double[]){a.data[0], -a.data[1]});
 }
 
 /* Norm a*conj(a) = x^2 + y^2 */
@@ -124,11 +131,11 @@ complex_inv(complex a)
     if (fabs(x) >= fabs(y)) {
         double ratio = y/x;
         double scale = (1/(1 + ratio*ratio))/x;
-        return complex_make(scale, -ratio*scale);
+        return complex_make((const double[]){scale, -ratio*scale});
     }
     double ratio = x/y;
     double scale = (1/(1 + ratio*ratio))/y;
-    return complex_make(ratio*scale, -scale);
+    return complex_make((const double[]){ratio*scale, -scale});
 }
 
 static inline complex
@@ -139,10 +146,10 @@ complex_div(complex a, complex b)
     double denominator;
     int ae = 0, be = 0;
     if (bi == 0 && br != 0) {
-        return complex_make(ar/br, ai/br);
+        return complex_make((const double[]){ar/br, ai/br});
     }
     if (br == 0 && bi != 0) {
-        return complex_make(ai/bi, -ar/bi);
+        return complex_make((const double[]){ai/bi, -ar/bi});
     }
     if (!isfinite(amax) || !isfinite(bmax) || bmax == 0) {
         return complex_mul(a, complex_inv(b));
@@ -154,23 +161,23 @@ complex_div(complex a, complex b)
     ar = scalbn(ar, -ae); ai = scalbn(ai, -ae);
     br = scalbn(br, -be); bi = scalbn(bi, -be);
     denominator = br*br + bi*bi;
-    return complex_make(scalbn((ar*br + ai*bi)/denominator, ae - be),
-                        scalbn((ai*br - ar*bi)/denominator, ae - be));
+    return complex_make((const double[]){scalbn((ar*br + ai*bi)/denominator, ae - be),
+                        scalbn((ai*br - ar*bi)/denominator, ae - be)});
 }
 
 static inline complex
 complex_exp(complex a)
 {
     double e = exp(a.data[0]);
-    return complex_make(e * cos(a.data[1]), e * sin(a.data[1]));
+    return complex_make((const double[]){e * cos(a.data[1]), e * sin(a.data[1])});
 }
 
 static inline complex
 complex_log(complex a)
 {
     double r = hypot(a.data[0], a.data[1]);
-    return complex_make(r == 0 ? -INFINITY : log(r),
-                         atan2(a.data[1], a.data[0]));
+    return complex_make((const double[]){r == 0 ? -INFINITY : log(r),
+                         atan2(a.data[1], a.data[0])});
 }
 
 /* Integer powers by squaring; negative exponents invert the base once. */
@@ -287,8 +294,8 @@ static inline complex
 complex_expm1(complex a)
 {
     double half_sin = sin(0.5*a.data[1]);
-    return complex_make(expm1(a.data[0])*cos(a.data[1]) - 2*half_sin*half_sin,
-                        exp(a.data[0])*sin(a.data[1]));
+    return complex_make((const double[]){expm1(a.data[0])*cos(a.data[1]) - 2*half_sin*half_sin,
+                        exp(a.data[0])*sin(a.data[1])});
 }
 
 static inline complex
@@ -297,7 +304,7 @@ complex_log1p(complex a)
     if (fabs(a.data[0]) < 0.5 && fabs(a.data[1]) < 0.5) {
         double real = a.data[1] == 0 ? log1p(a.data[0]) :
             0.5*log1p(a.data[0]*(2 + a.data[0]) + a.data[1]*a.data[1]);
-        return complex_make(real, atan2(a.data[1], 1 + a.data[0]));
+        return complex_make((const double[]){real, atan2(a.data[1], 1 + a.data[0])});
     }
     return complex_log(complex_ladd(a, 1));
 }
@@ -309,21 +316,21 @@ complex_sqrt(complex a)
     /* The native implementation avoids cancellation near the real axis. */
     memcpy(&z, a.data, sizeof(z));
     z = csqrt(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
 complex_cos(complex a)
 {
-    return complex_make(cos(a.data[0]) * cosh(a.data[1]),
-                         -sin(a.data[0]) * sinh(a.data[1]));
+    return complex_make((const double[]){cos(a.data[0]) * cosh(a.data[1]),
+                         -sin(a.data[0]) * sinh(a.data[1])});
 }
 
 static inline complex
 complex_sin(complex a)
 {
-    return complex_make(sin(a.data[0]) * cosh(a.data[1]),
-                         cos(a.data[0]) * sinh(a.data[1]));
+    return complex_make((const double[]){sin(a.data[0]) * cosh(a.data[1]),
+                         cos(a.data[0]) * sinh(a.data[1])});
 }
 
 static inline complex
@@ -333,7 +340,7 @@ complex_tan(complex a)
     /* Native reduction avoids overflowing sin/cos for large imaginary parts. */
     memcpy(&z, a.data, sizeof(z));
     z = ctan(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -344,7 +351,7 @@ complex_acos(complex a)
      * Copying preserves signed zeros on branch cuts without arithmetic. */
     memcpy(&z, a.data, sizeof(z));
     z = cacos(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -353,7 +360,7 @@ complex_asin(complex a)
     algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = casin(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -362,21 +369,21 @@ complex_atan(complex a)
     algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = catan(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
 complex_cosh(complex a)
 {
-    return complex_make(cosh(a.data[0]) * cos(a.data[1]),
-                         sinh(a.data[0]) * sin(a.data[1]));
+    return complex_make((const double[]){cosh(a.data[0]) * cos(a.data[1]),
+                         sinh(a.data[0]) * sin(a.data[1])});
 }
 
 static inline complex
 complex_sinh(complex a)
 {
-    return complex_make(sinh(a.data[0]) * cos(a.data[1]),
-                         cosh(a.data[0]) * sin(a.data[1]));
+    return complex_make((const double[]){sinh(a.data[0]) * cos(a.data[1]),
+                         cosh(a.data[0]) * sin(a.data[1])});
 }
 
 static inline complex
@@ -386,7 +393,7 @@ complex_tanh(complex a)
     /* The bounded result remains finite when sinh/cosh would overflow. */
     memcpy(&z, a.data, sizeof(z));
     z = ctanh(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -395,7 +402,7 @@ complex_acosh(complex a)
     algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = cacosh(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -404,7 +411,7 @@ complex_asinh(complex a)
     algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = casinh(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline complex
@@ -413,7 +420,7 @@ complex_atanh(complex a)
     algpy_native_complex z;
     memcpy(&z, a.data, sizeof(z));
     z = catanh(z);
-    return complex_make(creal(z), cimag(z));
+    return complex_make((const double[]){creal(z), cimag(z)});
 }
 
 static inline void
@@ -436,9 +443,9 @@ static inline complex
 complex_sqrt_real(double k)
 {
     if (k < 0) {
-        return complex_make(0, sqrt(-k));
+        return complex_make((const double[]){0, sqrt(-k)});
     }
-    return complex_make(sqrt(k), 0);
+    return complex_make((const double[]){sqrt(k), 0});
 }
 
 /* Principal d-th root of a real number: |k|^(1/d) times exp(i*pi/d) if k < 0. */
@@ -446,14 +453,14 @@ static inline complex
 complex_root_real(double k, int d)
 {
     if (k < 0 && d == 2) {
-        return complex_make(0, sqrt(-k));
+        return complex_make((const double[]){0, sqrt(-k)});
     }
     if (k < 0) {
         double r = pow(-k, 1. / d);
         double t = M_PI / d;
-        return complex_make(r * cos(t), r * sin(t));
+        return complex_make((const double[]){r * cos(t), r * sin(t)});
     }
-    return complex_make(pow(k, 1. / d), 0);
+    return complex_make((const double[]){pow(k, 1. / d), 0});
 }
 
 /* Common algebra API. */
@@ -598,25 +605,25 @@ complex_log_deriv4(complex a)
 static inline complex
 complex_log1p_deriv1(complex a)
 {
-    return complex_log_deriv1(complex_make(1+a.data[0], a.data[1]));
+    return complex_log_deriv1(complex_make((const double[]){1+a.data[0], a.data[1]}));
 }
 
 static inline complex
 complex_log1p_deriv2(complex a)
 {
-    return complex_log_deriv2(complex_make(1+a.data[0], a.data[1]));
+    return complex_log_deriv2(complex_make((const double[]){1+a.data[0], a.data[1]}));
 }
 
 static inline complex
 complex_log1p_deriv3(complex a)
 {
-    return complex_log_deriv3(complex_make(1+a.data[0], a.data[1]));
+    return complex_log_deriv3(complex_make((const double[]){1+a.data[0], a.data[1]}));
 }
 
 static inline complex
 complex_log1p_deriv4(complex a)
 {
-    return complex_log_deriv4(complex_make(1+a.data[0], a.data[1]));
+    return complex_log_deriv4(complex_make((const double[]){1+a.data[0], a.data[1]}));
 }
 
 static inline complex
@@ -780,8 +787,8 @@ static inline complex
 complex_asin_deriv1(complex a)
 {
     /* Separate square roots preserve the principal branches on both cuts. */
-    complex p = complex_sqrt(complex_make(1-a.data[0], -a.data[1]));
-    complex q = complex_sqrt(complex_make(1+a.data[0], a.data[1]));
+    complex p = complex_sqrt(complex_make((const double[]){1-a.data[0], -a.data[1]}));
+    complex q = complex_sqrt(complex_make((const double[]){1+a.data[0], a.data[1]}));
     return complex_inv(complex_mul(p, q));
 }
 
@@ -945,8 +952,8 @@ static inline complex
 complex_asinh_deriv1(complex a)
 {
     /* sqrt(1+i*a)*sqrt(1-i*a), with signed zeros kept on the cuts. */
-    complex p = complex_sqrt(complex_make(1-a.data[1], a.data[0]));
-    complex q = complex_sqrt(complex_make(1+a.data[1], -a.data[0]));
+    complex p = complex_sqrt(complex_make((const double[]){1-a.data[1], a.data[0]}));
+    complex q = complex_sqrt(complex_make((const double[]){1+a.data[1], -a.data[0]}));
     return complex_inv(complex_mul(p, q));
 }
 
@@ -978,8 +985,8 @@ complex_asinh_deriv4(complex a)
 static inline complex
 complex_acosh_deriv1(complex a)
 {
-    complex p = complex_sqrt(complex_make(a.data[0]-1, a.data[1]));
-    complex q = complex_sqrt(complex_make(a.data[0]+1, a.data[1]));
+    complex p = complex_sqrt(complex_make((const double[]){a.data[0]-1, a.data[1]}));
+    complex q = complex_sqrt(complex_make((const double[]){a.data[0]+1, a.data[1]}));
     return complex_inv(complex_mul(p, q));
 }
 
@@ -1073,5 +1080,155 @@ complex_rmat(complex a, double result[ALGPY_COMPLEX_N*ALGPY_COMPLEX_N])
     }
 }
 
+
+/*
+ * Fifth derivatives, used by complex_jet5. The inverse functions are written
+ * as a polynomial times a power of their principal first derivative, so
+ * they share its branch cuts: for example asin^(5)(z) =
+ * (24 z^4 + 72 z^2 + 9) (1 - z^2)^(-9/2).
+ */
+static inline complex
+complex_power5_helper(complex a)
+{
+    complex a2 = complex_square(a);
+    return complex_mul(complex_square(a2), a);
+}
+
+static inline complex
+complex_exp_deriv5(complex a)
+{
+    return complex_exp(a);
+}
+
+static inline complex
+complex_expm1_deriv5(complex a)
+{
+    return complex_exp(a);
+}
+
+static inline complex
+complex_log_deriv5(complex a)
+{
+    return vec2_scale(complex_inv(complex_power5_helper(a)), 24);
+}
+
+static inline complex
+complex_log1p_deriv5(complex a)
+{
+    return complex_log_deriv5(complex_make((const double[]){1+a.data[0], a.data[1]}));
+}
+
+static inline complex
+complex_inv_deriv5(complex a)
+{
+    complex r = complex_inv(a);
+    return vec2_scale(complex_mul(complex_power5_helper(r), r), -120);
+}
+
+static inline complex
+complex_square_deriv5(complex a)
+{
+    (void)a;
+    return complex_zero();
+}
+
+static inline complex
+complex_sqrt_deriv5(complex a)
+{
+    complex r = complex_inv(a);
+    complex r4 = complex_square(complex_square(r));
+    return vec2_scale(complex_mul(r4, complex_inv(complex_sqrt(a))), 105./32);
+}
+
+static inline complex
+complex_sin_deriv5(complex a)
+{
+    return complex_cos(a);
+}
+
+static inline complex
+complex_cos_deriv5(complex a)
+{
+    return complex_neg(complex_sin(a));
+}
+
+static inline complex
+complex_sinh_deriv5(complex a)
+{
+    return complex_cosh(a);
+}
+
+static inline complex
+complex_cosh_deriv5(complex a)
+{
+    return complex_sinh(a);
+}
+
+/* (120 t^4 +/- 120 t^2 + 16) times the first derivative 1 +/- t^2. */
+static inline complex
+complex_tan_deriv5(complex a)
+{
+    complex t2 = complex_square(complex_tan(a));
+    complex p = complex_radd(16, complex_mul(t2, complex_radd(120, vec2_scale(t2, 120))));
+    return complex_mul(p, complex_tan_deriv1(a));
+}
+
+static inline complex
+complex_tanh_deriv5(complex a)
+{
+    complex t2 = complex_square(complex_tanh(a));
+    complex p = complex_radd(16, complex_mul(t2, complex_rsub(-120, vec2_scale(t2, -120))));
+    return complex_mul(p, complex_tanh_deriv1(a));
+}
+
+/* c4 a^4 + c2 a^2 + c0 times d^power. */
+static inline complex
+complex_even_quartic_times_power(complex a, double c4, double c2, double c0,
+                                 complex d, int power)
+{
+    complex a2 = complex_square(a), result = complex_one();
+    complex p = complex_radd(c0, complex_add(vec2_scale(complex_square(a2), c4), vec2_scale(a2, c2)));
+    int i;
+    for (i = 0; i < power; i++) {
+        result = complex_mul(result, d);
+    }
+    return complex_mul(p, result);
+}
+
+static inline complex
+complex_asin_deriv5(complex a)
+{
+    return complex_even_quartic_times_power(a, 24, 72, 9, complex_asin_deriv1(a), 9);
+}
+
+static inline complex
+complex_acos_deriv5(complex a)
+{
+    return complex_neg(complex_asin_deriv5(a));
+}
+
+static inline complex
+complex_asinh_deriv5(complex a)
+{
+    return complex_even_quartic_times_power(a, 24, -72, 9, complex_asinh_deriv1(a), 9);
+}
+
+static inline complex
+complex_acosh_deriv5(complex a)
+{
+    return complex_even_quartic_times_power(a, 24, 72, 9, complex_acosh_deriv1(a), 9);
+}
+
+static inline complex
+complex_atan_deriv5(complex a)
+{
+    return complex_even_quartic_times_power(a, 120, -240, 24, complex_atan_deriv1(a), 5);
+}
+
+static inline complex
+complex_atanh_deriv5(complex a)
+{
+    return complex_even_quartic_times_power(a, 120, 240, 24, complex_atanh_deriv1(a), 5);
+}
 
 #endif /* ALGPY_COMPLEX_H */

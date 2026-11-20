@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "complex3.h"
 
@@ -68,7 +69,7 @@ pycomplex3_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7])) {
         return NULL;
     }
-    return PyComplex3_FromValue(type, complex3_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]));
+    return PyComplex3_FromValue(type, complex3_make(d));
 }
 
 static PyObject *
@@ -310,6 +311,21 @@ pycomplex3_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pycomplex3_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_complex3);
+    complex3 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (complex3 *)PyArray_DATA(arr);
+    complex3_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pycomplex3_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {8, 8};
@@ -446,7 +462,10 @@ pycomplex3_imag(PyObject *self, void *closure)
     return pycomplex3_im(self, NULL);
 }
 
+static PyObject *pycomplex3_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycomplex3_getset[] = {
+    {"grade", pycomplex3_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycomplex3_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycomplex3_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -552,6 +571,31 @@ pycomplex3_ipow(PyObject *self, PyObject *arg)
     return NEW_COMPLEX3(complex3_ipow(((PyComplex3 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycomplex3_grade(PyObject *self, Py_ssize_t k)
+{
+    complex3 v = ((PyComplex3 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyComplex3_FromValue(Py_TYPE(self), complex3_grade0(v));
+        case 1:
+            return PyComplex3_FromValue(Py_TYPE(self), complex3_grade1(v));
+        case 2:
+            return PyComplex3_FromValue(Py_TYPE(self), complex3_grade2(v));
+        case 3:
+            return PyComplex3_FromValue(Py_TYPE(self), complex3_grade3(v));
+        default:
+            return PyComplex3_FromValue(Py_TYPE(self), complex3_zero());
+    }
+}
+
+static PyObject *
+pycomplex3_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycomplex3_grade, 4);
+}
+
 static PyMethodDef pycomplex3_methods[] = {
     {"to_float", (PyCFunction)pycomplex3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -586,6 +630,7 @@ static PyMethodDef pycomplex3_methods[] = {
     {"zero", pycomplex3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycomplex3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycomplex3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycomplex3_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycomplex3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pycomplex3_norm, METH_NOARGS, "Norm as a Python float."},
     {"lpow", pycomplex3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

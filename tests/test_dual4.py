@@ -6,7 +6,7 @@ import subprocess
 import numpy as np
 import pytest
 from algpy.algebras import dual4
-from dual_reference import FUNCTIONS, product, real_points, taylor
+from dual_reference import FUNCTIONS, product, real_points, taylor, c_derivatives
 import basic_checks as basic
 import api_checks as api
 import conversion_checks as conversions
@@ -19,6 +19,18 @@ import binding_checks
 @pytest.fixture(scope="module")
 def algebra():
     return dual4
+
+
+@pytest.mark.parametrize("offset", [1, 2])
+@pytest.mark.parametrize("index,name,function", [(i, name, function)
+                         for i, (name, function) in enumerate(FUNCTIONS)],
+                         ids=[name for name, _ in FUNCTIONS])
+def test_derivative_helpers(c_derivatives, offset, index, name, function):
+    coefficients = np.random.default_rng(52).uniform(-.3, .3, 16)
+    coefficients[0] = real_points(name)[0]
+    expected = taylor(function, coefficients, offset)
+    actual = c_derivatives(4, index, offset, coefficients)
+    np.testing.assert_allclose(actual, expected, rtol=3e-10, atol=3e-10)
 
 
 @pytest.mark.parametrize("name,function", FUNCTIONS, ids=[name for name, _ in FUNCTIONS])
@@ -198,6 +210,12 @@ def test_basic_norm(common_algebra):
 def test_basic_minpoly_eivals(common_algebra):
     basic.check_minpoly_eivals(common_algebra)
 
+@pytest.mark.parametrize("parameters", [None], ids=str)
+def test_basic_gens(common_algebra, parameters):
+    if parameters is not None:
+        common_algebra.K = parameters
+    basic.check_gens(common_algebra)
+
 def test_basic_basis(common_algebra):
     basic.check_basis(common_algebra)
 
@@ -220,6 +238,9 @@ def test_api_binary_cast_broadcast_and_operator(common_algebra, name):
 
 def test_api_predicates_parts_and_inverse(common_algebra):
     api.check_predicates_parts_and_inverse(common_algebra)
+
+def test_api_grade_projection(common_algebra):
+    api.check_grade_projection(common_algebra)
 
 def test_api_norm_static_return_type(common_algebra):
     api.check_norm_static_return_type(common_algebra)

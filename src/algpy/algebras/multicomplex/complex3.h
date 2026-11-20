@@ -1,6 +1,7 @@
 #ifndef ALGPY_COMPLEX3_H
 #define ALGPY_COMPLEX3_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../vectorspaces/vec8.h"
 #include "complex2.h"
@@ -10,9 +11,10 @@
 typedef vec8 complex3;
 
 static inline complex3
-complex3_make(double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7)
+complex3_make(const double coeffs[ALGPY_COMPLEX3_N])
 {
-    complex3 result = {{x0, x1, x2, x3, x4, x5, x6, x7}};
+    complex3 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
     return result;
 }
 
@@ -22,20 +24,20 @@ complex3_make(double x0, double x1, double x2, double x3, double x4, double x5, 
 static inline complex3
 complex3_apply(complex3 a, complex2 (*f)(complex2))
 {
-    complex2 p = f(complex2_make(
+    complex2 p = f(complex2_make((const double[]){
         a.data[0] - a.data[5],
         a.data[1] + a.data[4],
         a.data[2] - a.data[7],
-        a.data[3] + a.data[6]));
+        a.data[3] + a.data[6]}));
 
-    complex2 q = f(complex2_make(
+    complex2 q = f(complex2_make((const double[]){
         a.data[0] + a.data[5],
         a.data[1] - a.data[4],
         a.data[2] + a.data[7],
-        a.data[3] - a.data[6]));
+        a.data[3] - a.data[6]}));
 
     /* u' = (p + q)/2, v' = (p - q)/(2*i0). */
-    return complex3_make(
+    return complex3_make((const double[]){
         (p.data[0] + q.data[0]) / 2,
         (p.data[1] + q.data[1]) / 2,
         (p.data[2] + q.data[2]) / 2,
@@ -43,13 +45,13 @@ complex3_apply(complex3 a, complex2 (*f)(complex2))
         (p.data[1] - q.data[1]) / 2,
         (q.data[0] - p.data[0]) / 2,
         (p.data[3] - q.data[3]) / 2,
-        (q.data[2] - p.data[2]) / 2);
+        (q.data[2] - p.data[2]) / 2});
 }
 
 static inline complex3
 complex3_from_re(double a)
 {
-    return complex3_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return complex3_make((const double[ALGPY_COMPLEX3_N]){a});
 }
 
 static inline double
@@ -103,7 +105,7 @@ complex3_im(complex3 a)
 static inline complex3
 complex3_conjugate(complex3 a)
 {
-    return complex3_make(a.data[0], a.data[1], a.data[2], a.data[3], -a.data[4], -a.data[5], -a.data[6], -a.data[7]);
+    return complex3_make((const double[]){a.data[0], a.data[1], a.data[2], a.data[3], -a.data[4], -a.data[5], -a.data[6], -a.data[7]});
 }
 
 static inline complex3
@@ -139,21 +141,24 @@ complex3_mul(complex3 a, complex3 b)
     if (complex3_is_real(a)) {
         return vec8_scale(b, a.data[0]);
     }
-    complex2 u = complex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    complex2 v = complex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
-    complex2 s = complex2_make(b.data[0], b.data[1], b.data[2], b.data[3]);
-    complex2 t = complex2_make(b.data[4], b.data[5], b.data[6], b.data[7]);
+    complex2 u = complex2_make(a.data);
+    complex2 v = complex2_make(a.data + 4);
+    complex2 s = complex2_make(b.data);
+    complex2 t = complex2_make(b.data + 4);
     complex2 lo = complex2_sub(complex2_mul(u, s), complex2_mul(v, t));
     complex2 hi = complex2_add(complex2_mul(u, t), complex2_mul(v, s));
-    return complex3_make(lo.data[0], lo.data[1], lo.data[2], lo.data[3], hi.data[0], hi.data[1], hi.data[2], hi.data[3]);
+    complex3 result;
+    memcpy(result.data, lo.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_COMPLEX3_N/2, hi.data, sizeof(result.data)/2);
+    return result;
 }
 
 /* Recursive norm: (u + v*i)*(u - v*i) = u*u + v*v. */
 static inline complex2
 complex3_norm2(complex3 a)
 {
-    complex2 u = complex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    complex2 v = complex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    complex2 u = complex2_make(a.data);
+    complex2 v = complex2_make(a.data + 4);
     return complex2_add(complex2_mul(u, u), complex2_mul(v, v));
 }
 
@@ -179,11 +184,14 @@ static inline complex3
 complex3_inv(complex3 a)
 {
     complex2 ninv = complex2_inv(complex3_norm2(a));
-    complex2 u = complex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    complex2 v = complex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    complex2 u = complex2_make(a.data);
+    complex2 v = complex2_make(a.data + 4);
     complex2 lo = complex2_mul(u, ninv);
     complex2 hi = complex2_mul(complex2_neg(v), ninv);
-    return complex3_make(lo.data[0], lo.data[1], lo.data[2], lo.data[3], hi.data[0], hi.data[1], hi.data[2], hi.data[3]);
+    complex3 result;
+    memcpy(result.data, lo.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_COMPLEX3_N/2, hi.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline complex3
@@ -436,6 +444,14 @@ complex3_basis(complex3 result[8])
 }
 
 static inline void
+complex3_gens(complex3 result[3])
+{
+    result[0] = complex3_make((const double[ALGPY_COMPLEX3_N]){[1] = 1});
+    result[1] = complex3_make((const double[ALGPY_COMPLEX3_N]){[2] = 1});
+    result[2] = complex3_make((const double[ALGPY_COMPLEX3_N]){[4] = 1});
+}
+
+static inline void
 complex3_coeffs(complex3 result[64])
 {
     complex3 basis[ALGPY_COMPLEX3_N];
@@ -451,16 +467,16 @@ complex3_coeffs(complex3 result[64])
 static inline void
 complex3_minpoly(complex3 a, double result[9])
 {
-    complex2 p = complex2_make(
+    complex2 p = complex2_make((const double[]){
         a.data[0] - a.data[5],
         a.data[1] + a.data[4],
         a.data[2] - a.data[7],
-        a.data[3] + a.data[6]);
-    complex2 q = complex2_make(
+        a.data[3] + a.data[6]});
+    complex2 q = complex2_make((const double[]){
         a.data[0] + a.data[5],
         a.data[1] - a.data[4],
         a.data[2] + a.data[7],
-        a.data[3] - a.data[6]);
+        a.data[3] - a.data[6]});
     double left[5], right[5];
     int i, j;
     complex2_minpoly(p, left);
@@ -478,16 +494,16 @@ complex3_minpoly(complex3 a, double result[9])
 static inline void
 complex3_eivals(complex3 a, complex result[8])
 {
-    complex2 p = complex2_make(
+    complex2 p = complex2_make((const double[]){
         a.data[0] - a.data[5],
         a.data[1] + a.data[4],
         a.data[2] - a.data[7],
-        a.data[3] + a.data[6]);
-    complex2 q = complex2_make(
+        a.data[3] + a.data[6]});
+    complex2 q = complex2_make((const double[]){
         a.data[0] + a.data[5],
         a.data[1] - a.data[4],
         a.data[2] + a.data[7],
-        a.data[3] - a.data[6]);
+        a.data[3] - a.data[6]});
     complex left[4], right[4];
     complex2_eivals(p, left);
     complex2_eivals(q, right);
@@ -536,5 +552,34 @@ complex3_rmat(complex3 a, double result[ALGPY_COMPLEX3_N*ALGPY_COMPLEX3_N])
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline complex3
+complex3_grade0(complex3 a)
+{
+    const double *x = a.data;
+    return complex3_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline complex3
+complex3_grade1(complex3 a)
+{
+    const double *x = a.data;
+    return complex3_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
+}
+
+static inline complex3
+complex3_grade2(complex3 a)
+{
+    const double *x = a.data;
+    return complex3_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
+}
+
+static inline complex3
+complex3_grade3(complex3 a)
+{
+    const double *x = a.data;
+    return complex3_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
+}
 
 #endif /* ALGPY_COMPLEX3_H */

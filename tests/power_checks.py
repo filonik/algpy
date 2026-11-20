@@ -12,6 +12,7 @@ import pytest
 from algpy import algebras
 
 from algpy.algebras import general
+from algebra_reference import FIXED_METRICS
 
 
 
@@ -169,7 +170,7 @@ def check_power_order(algebra):
     # e1 and e2 anticommute in every noncommutative algebra here. With
     # a = exp(t*e1), b = e2, left/right powers are exp(-/+ t*e12).
     # Evaluate those two-dimensional exponentials directly from e_i**2.
-    parameters = algebra.K if hasattr(algebra, "K") else (-1, -1)
+    parameters = algebra.K if hasattr(algebra, "K") else FIXED_METRICS.get(algebra.__name__, (-1, -1))
     scalar, component = _generator_exp(parameters[0], .25)
     base = algebra(scalar, component)
     exponent = algebra(0, 0, 1)

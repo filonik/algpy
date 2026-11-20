@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "splitcomplex3.h"
 
@@ -68,7 +69,7 @@ pysplitcomplex3_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             &d[0], &d[1], &d[2], &d[3], &d[4], &d[5], &d[6], &d[7])) {
         return NULL;
     }
-    return PySplitcomplex3_FromValue(type, splitcomplex3_make(d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]));
+    return PySplitcomplex3_FromValue(type, splitcomplex3_make(d));
 }
 
 static PyObject *
@@ -311,6 +312,21 @@ pysplitcomplex3_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pysplitcomplex3_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {3};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_splitcomplex3);
+    splitcomplex3 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (splitcomplex3 *)PyArray_DATA(arr);
+    splitcomplex3_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pysplitcomplex3_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {8, 8};
@@ -447,7 +463,10 @@ pysplitcomplex3_imag(PyObject *self, void *closure)
     return pysplitcomplex3_im(self, NULL);
 }
 
+static PyObject *pysplitcomplex3_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pysplitcomplex3_getset[] = {
+    {"grade", pysplitcomplex3_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pysplitcomplex3_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pysplitcomplex3_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -553,6 +572,31 @@ pysplitcomplex3_ipow(PyObject *self, PyObject *arg)
     return NEW_SPLITCOMPLEX3(splitcomplex3_ipow(((PySplitcomplex3 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pysplitcomplex3_grade(PyObject *self, Py_ssize_t k)
+{
+    splitcomplex3 v = ((PySplitcomplex3 *)self)->v;
+    switch (k) {
+        case 0:
+            return PySplitcomplex3_FromValue(Py_TYPE(self), splitcomplex3_grade0(v));
+        case 1:
+            return PySplitcomplex3_FromValue(Py_TYPE(self), splitcomplex3_grade1(v));
+        case 2:
+            return PySplitcomplex3_FromValue(Py_TYPE(self), splitcomplex3_grade2(v));
+        case 3:
+            return PySplitcomplex3_FromValue(Py_TYPE(self), splitcomplex3_grade3(v));
+        default:
+            return PySplitcomplex3_FromValue(Py_TYPE(self), splitcomplex3_zero());
+    }
+}
+
+static PyObject *
+pysplitcomplex3_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pysplitcomplex3_grade, 4);
+}
+
 static PyMethodDef pysplitcomplex3_methods[] = {
     {"to_float", (PyCFunction)pysplitcomplex3_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pysplitcomplex3_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -587,6 +631,7 @@ static PyMethodDef pysplitcomplex3_methods[] = {
     {"zero", pysplitcomplex3_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pysplitcomplex3_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pysplitcomplex3_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pysplitcomplex3_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pysplitcomplex3_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pysplitcomplex3_norm, METH_NOARGS, "Norm as a Python complex."},
     {"lpow", pysplitcomplex3_lpow, METH_O, "lpow(exponent): exp(exponent * log(self))."},

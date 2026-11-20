@@ -8,6 +8,7 @@
 #ifndef ALGPY_MULTICOMPLEX3_H
 #define ALGPY_MULTICOMPLEX3_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../../fields/complex.h"
 
@@ -26,16 +27,17 @@
 typedef vec8 multicomplex3;
 
 static inline multicomplex3
-multicomplex3_make(double x, double x0, double x1, double x01, double x2, double x02, double x12, double x012)
+multicomplex3_make(const double coeffs[ALGPY_MULTICOMPLEX3_N])
 {
-    multicomplex3 r = {{x, x0, x1, x01, x2, x02, x12, x012}};
-    return r;
+    multicomplex3 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline multicomplex3
 multicomplex3_from_re(double a)
 {
-    return multicomplex3_make(a, 0, 0, 0, 0, 0, 0, 0);
+    return multicomplex3_make((const double[ALGPY_MULTICOMPLEX3_N]){a});
 }
 
 static inline double
@@ -64,7 +66,7 @@ static inline multicomplex3
 multicomplex3_mul(vec3 h, multicomplex3 a, multicomplex3 b)
 {
     const double *k = h.data, *x = a.data, *y = b.data;
-    return multicomplex3_make(
+    return multicomplex3_make((const double[]){
       x[0]*y[0] + k[0]*x[1]*y[1] + k[1]*x[2]*y[2] + k[0]*k[1]*x[3]*y[3] + k[2]*x[4]*y[4] + k[0]*k[2]*x[5]*y[5] + k[1]*k[2]*x[6]*y[6] + k[0]*k[1]*k[2]*x[7]*y[7],
       x[0]*y[1] + k[1]*k[2]*x[6]*y[7] + k[1]*k[2]*x[7]*y[6] + k[1]*x[2]*y[3] + k[1]*x[3]*y[2] + k[2]*x[4]*y[5] + k[2]*x[5]*y[4] + x[1]*y[0],
       x[0]*y[2] + k[0]*k[2]*x[5]*y[7] + k[0]*k[2]*x[7]*y[5] + k[0]*x[1]*y[3] + k[0]*x[3]*y[1] + k[2]*x[4]*y[6] + k[2]*x[6]*y[4] + x[2]*y[0],
@@ -72,14 +74,14 @@ multicomplex3_mul(vec3 h, multicomplex3 a, multicomplex3 b)
       x[0]*y[4] + k[0]*k[1]*x[3]*y[7] + k[0]*k[1]*x[7]*y[3] + k[0]*x[1]*y[5] + k[0]*x[5]*y[1] + k[1]*x[2]*y[6] + k[1]*x[6]*y[2] + x[4]*y[0],
       x[0]*y[5] + k[1]*x[2]*y[7] + k[1]*x[3]*y[6] + k[1]*x[6]*y[3] + k[1]*x[7]*y[2] + x[1]*y[4] + x[4]*y[1] + x[5]*y[0],
       x[0]*y[6] + k[0]*x[1]*y[7] + k[0]*x[3]*y[5] + k[0]*x[5]*y[3] + k[0]*x[7]*y[1] + x[2]*y[4] + x[4]*y[2] + x[6]*y[0],
-      x[0]*y[7] + x[1]*y[6] + x[2]*y[5] + x[3]*y[4] + x[4]*y[3] + x[5]*y[2] + x[6]*y[1] + x[7]*y[0]);
+      x[0]*y[7] + x[1]*y[6] + x[2]*y[5] + x[3]*y[4] + x[4]*y[3] + x[5]*y[2] + x[6]*y[1] + x[7]*y[0]});
 }
 
 static inline multicomplex3
 multicomplex3_conjugate(multicomplex3 a)
 {
-    return multicomplex3_make(a.data[0], a.data[1], a.data[2], a.data[3],
-                              -a.data[4], -a.data[5], -a.data[6], -a.data[7]);
+    return multicomplex3_make((const double[]){a.data[0], a.data[1], a.data[2], a.data[3],
+                              -a.data[4], -a.data[5], -a.data[6], -a.data[7]});
 }
 
 /* Norm a*conj(a) = u^2 - k[2]*v^2 with a = u + v*e2. */
@@ -87,10 +89,8 @@ static inline multicomplex2
 multicomplex3_norm2(vec3 k, multicomplex3 a)
 {
     vec2 k01 = {{k.data[0], k.data[1]}};
-    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1],
-                                         a.data[2], a.data[3]);
-    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5],
-                                         a.data[6], a.data[7]);
+    multicomplex2 u = multicomplex2_make(a.data);
+    multicomplex2 v = multicomplex2_make(a.data + 4);
     multicomplex2 uu = multicomplex2_mul(k01, u, u);
     multicomplex2 vv = multicomplex2_mul(k01, v, v);
     return vec4_sub(uu, vec4_scale(vv, k.data[2]));
@@ -121,14 +121,14 @@ multicomplex3_inv(vec3 k, multicomplex3 a)
 {
     vec2 k01 = {{k.data[0], k.data[1]}};
     multicomplex2 ninv = multicomplex2_inv(k01, multicomplex3_norm2(k, a));
-    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1],
-                                         a.data[2], a.data[3]);
-    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5],
-                                         a.data[6], a.data[7]);
+    multicomplex2 u = multicomplex2_make(a.data);
+    multicomplex2 v = multicomplex2_make(a.data + 4);
     multicomplex2 ru = multicomplex2_mul(k01, u, ninv);
     multicomplex2 rv = multicomplex2_mul(k01, vec4_neg(v), ninv);
-    return multicomplex3_make(ru.data[0], ru.data[1], ru.data[2], ru.data[3],
-                              rv.data[0], rv.data[1], rv.data[2], rv.data[3]);
+    multicomplex3 result;
+    memcpy(result.data, ru.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_MULTICOMPLEX3_N/2, rv.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline multicomplex3
@@ -151,6 +151,14 @@ multicomplex3_basis(multicomplex3 result[ALGPY_MULTICOMPLEX3_N])
             result[i].data[j] = components[j];
         }
     }
+}
+
+static inline void
+multicomplex3_gens(multicomplex3 result[3])
+{
+    result[0] = multicomplex3_make((const double[ALGPY_MULTICOMPLEX3_N]){[1] = 1});
+    result[1] = multicomplex3_make((const double[ALGPY_MULTICOMPLEX3_N]){[2] = 1});
+    result[2] = multicomplex3_make((const double[ALGPY_MULTICOMPLEX3_N]){[4] = 1});
 }
 
 static inline void
@@ -204,7 +212,7 @@ multicomplex3_eivals(vec3 k, multicomplex3 a, complex result[8])
         s[b] = complex_sqrt_real(k.data[b]);
     }
     for (i = 0; i < 8; i++) {
-        complex t = complex_make(a.data[i], 0);
+        complex t = complex_make((const double[]){a.data[i], 0});
         for (b = 0; b < 3; b++) {
             if (i & (1 << b)) {
                 t = complex_mul(t, s[b]);
@@ -224,7 +232,7 @@ multicomplex3_eivals(vec3 k, multicomplex3 a, complex result[8])
             re += sign * n[i].data[0];
             im += sign * n[i].data[1];
         }
-            result[j] = complex_make(re, im);
+            result[j] = complex_make((const double[]){re, im});
     }
 }
 
@@ -293,15 +301,15 @@ multicomplex3_im(multicomplex3 a)
 static inline multicomplex3
 multicomplex3_swap_outer(multicomplex3 a)
 {
-    return multicomplex3_make(a.data[0], a.data[4], a.data[2], a.data[6], a.data[1], a.data[5], a.data[3], a.data[7]);
+    return multicomplex3_make((const double[]){a.data[0], a.data[4], a.data[2], a.data[6], a.data[1], a.data[5], a.data[3], a.data[7]});
 }
 
 static inline multicomplex3
 multicomplex3_apply(vec3 k, multicomplex3 a, multicomplex2 (*f)(vec2, multicomplex2), multicomplex2 (*deriv1)(vec2, multicomplex2))
 {
     vec2 base = {{k.data[0], k.data[1]}};
-    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
+    multicomplex2 u = multicomplex2_make(a.data);
+    multicomplex2 v = multicomplex2_make(a.data + 4);
     multicomplex2 p, q;
     multicomplex3 result;
     int i;
@@ -325,7 +333,7 @@ multicomplex3_apply(vec3 k, multicomplex3 a, multicomplex2 (*f)(vec2, multicompl
         return result;
     }
     if (!(k.data[2] < 0)) {
-        return multicomplex3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        return multicomplex3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
     }
     /* Find a complex direction in the lower algebra. */
     int bit = 0;
@@ -634,10 +642,10 @@ multicomplex3_rpow(vec3 k, multicomplex3 a, multicomplex3 b)
         return dual3_rpow(a, b);
     }
     vec2 base = {{k.data[0], k.data[1]}};
-    multicomplex2 u = multicomplex2_make(a.data[0], a.data[1], a.data[2], a.data[3]);
-    multicomplex2 v = multicomplex2_make(a.data[4], a.data[5], a.data[6], a.data[7]);
-    multicomplex2 bu = multicomplex2_make(b.data[0], b.data[1], b.data[2], b.data[3]);
-    multicomplex2 bv = multicomplex2_make(b.data[4], b.data[5], b.data[6], b.data[7]);
+    multicomplex2 u = multicomplex2_make(a.data);
+    multicomplex2 v = multicomplex2_make(a.data + 4);
+    multicomplex2 bu = multicomplex2_make(b.data);
+    multicomplex2 bv = multicomplex2_make(b.data + 4);
     multicomplex2 p, q;
     multicomplex3 result;
     int i;
@@ -655,7 +663,7 @@ multicomplex3_rpow(vec3 k, multicomplex3 a, multicomplex3 b)
         return result;
     }
     if (!(k.data[2] < 0)) {
-        return multicomplex3_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        return multicomplex3_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
     }
     /* Find a complex direction in the lower algebra. */
     int bit = 0;
@@ -796,11 +804,17 @@ multicomplex3_mix(vec3 k, multicomplex3 a, multicomplex3 b, double t)
     return multicomplex3_mul(k, a, multicomplex3_lpows(k, delta, t));
 }
 
-/* Derivatives through order 1, for nilpotent extensions at higher levels. */
+/* Derivatives through order 2, for nilpotent extensions at higher levels. */
 static inline multicomplex3
 multicomplex3_exp_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_exp_deriv1, multicomplex2_exp_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_exp_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_exp_deriv2, multicomplex2_exp_deriv3);
 }
 
 static inline multicomplex3
@@ -810,9 +824,21 @@ multicomplex3_expm1_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_expm1_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_expm1_deriv2, multicomplex2_expm1_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_log_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_log_deriv1, multicomplex2_log_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_log_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_log_deriv2, multicomplex2_log_deriv3);
 }
 
 static inline multicomplex3
@@ -822,9 +848,21 @@ multicomplex3_log1p_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_log1p_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_log1p_deriv2, multicomplex2_log1p_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_inv_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_inv_deriv1, multicomplex2_inv_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_inv_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_inv_deriv2, multicomplex2_inv_deriv3);
 }
 
 static inline multicomplex3
@@ -834,9 +872,21 @@ multicomplex3_square_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_square_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_square_deriv2, multicomplex2_square_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_sqrt_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_sqrt_deriv1, multicomplex2_sqrt_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_sqrt_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sqrt_deriv2, multicomplex2_sqrt_deriv3);
 }
 
 static inline multicomplex3
@@ -846,9 +896,21 @@ multicomplex3_sin_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_sin_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sin_deriv2, multicomplex2_sin_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_cos_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_cos_deriv1, multicomplex2_cos_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_cos_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_cos_deriv2, multicomplex2_cos_deriv3);
 }
 
 static inline multicomplex3
@@ -858,9 +920,21 @@ multicomplex3_tan_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_tan_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_tan_deriv2, multicomplex2_tan_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_asin_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_asin_deriv1, multicomplex2_asin_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_asin_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_asin_deriv2, multicomplex2_asin_deriv3);
 }
 
 static inline multicomplex3
@@ -870,9 +944,21 @@ multicomplex3_acos_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_acos_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_acos_deriv2, multicomplex2_acos_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_atan_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_atan_deriv1, multicomplex2_atan_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_atan_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_atan_deriv2, multicomplex2_atan_deriv3);
 }
 
 static inline multicomplex3
@@ -882,9 +968,21 @@ multicomplex3_sinh_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_sinh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_sinh_deriv2, multicomplex2_sinh_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_cosh_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_cosh_deriv1, multicomplex2_cosh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_cosh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_cosh_deriv2, multicomplex2_cosh_deriv3);
 }
 
 static inline multicomplex3
@@ -894,9 +992,21 @@ multicomplex3_tanh_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_tanh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_tanh_deriv2, multicomplex2_tanh_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_asinh_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_asinh_deriv1, multicomplex2_asinh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_asinh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_asinh_deriv2, multicomplex2_asinh_deriv3);
 }
 
 static inline multicomplex3
@@ -906,9 +1016,21 @@ multicomplex3_acosh_deriv1(vec3 k, multicomplex3 a)
 }
 
 static inline multicomplex3
+multicomplex3_acosh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_acosh_deriv2, multicomplex2_acosh_deriv3);
+}
+
+static inline multicomplex3
 multicomplex3_atanh_deriv1(vec3 k, multicomplex3 a)
 {
     return multicomplex3_apply(k, a, multicomplex2_atanh_deriv1, multicomplex2_atanh_deriv2);
+}
+
+static inline multicomplex3
+multicomplex3_atanh_deriv2(vec3 k, multicomplex3 a)
+{
+    return multicomplex3_apply(k, a, multicomplex2_atanh_deriv2, multicomplex2_atanh_deriv3);
 }
 
 /* Row-major multiplication matrices: lmat acts on columns, rmat on rows.
@@ -945,5 +1067,34 @@ multicomplex3_rmat(vec3 k, multicomplex3 a, double result[ALGPY_MULTICOMPLEX3_N*
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline multicomplex3
+multicomplex3_grade0(multicomplex3 a)
+{
+    const double *x = a.data;
+    return multicomplex3_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline multicomplex3
+multicomplex3_grade1(multicomplex3 a)
+{
+    const double *x = a.data;
+    return multicomplex3_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0});
+}
+
+static inline multicomplex3
+multicomplex3_grade2(multicomplex3 a)
+{
+    const double *x = a.data;
+    return multicomplex3_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0});
+}
+
+static inline multicomplex3
+multicomplex3_grade3(multicomplex3 a)
+{
+    const double *x = a.data;
+    return multicomplex3_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7]});
+}
 
 #endif /* ALGPY_MULTICOMPLEX3_H */

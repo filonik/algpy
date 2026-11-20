@@ -3,6 +3,7 @@
 
 #define ALGPY_CLIFFORD4_N 16
 
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 
@@ -29,58 +30,55 @@ static inline int popcount(unsigned int x)
 }
 
 static inline clifford4
-clifford4_make(double x, double x0, double x1, double x01,
-                    double x2, double x02, double x12, double x012,
-                    double x3, double x03, double x13, double x013,
-                    double x23, double x023, double x123, double x0123)
+clifford4_make(const double coeffs[ALGPY_CLIFFORD4_N])
 {
-    clifford4 r = {{x, x0, x1, x01, x2, x02, x12, x012,
-                         x3, x03, x13, x013, x23, x023, x123, x0123}};
-    return r;
+    clifford4 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 static inline clifford4
 clifford4_grade0(clifford4 a)
 {
     const double *x = a.data;
-    return clifford4_make(x[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return clifford4_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline clifford4
 clifford4_grade1(clifford4 a)
 {
     const double *x = a.data;
-    return clifford4_make(0, x[1], x[2], 0, x[4], 0, 0, 0, x[8], 0, 0, 0, 0, 0, 0, 0);
+    return clifford4_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0, x[8], 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline clifford4
 clifford4_grade2(clifford4 a)
 {
     const double *x = a.data;
-    return clifford4_make(0, 0, 0, x[3], 0, x[5], x[6], 0,
-                          0, x[9], x[10], 0, x[12], 0, 0, 0);
+    return clifford4_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0,
+                          0, x[9], x[10], 0, x[12], 0, 0, 0});
 }
 
 static inline clifford4
 clifford4_grade3(clifford4 a)
 {
     const double *x = a.data;
-    return clifford4_make(0, 0, 0, 0, 0, 0, 0, x[7],
-                          0, 0, 0, x[11], 0, x[13], x[14], 0);
+    return clifford4_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7],
+                          0, 0, 0, x[11], 0, x[13], x[14], 0});
 }
 
 static inline clifford4
 clifford4_grade4(clifford4 a)
 {
     const double *x = a.data;
-    return clifford4_make(0, 0, 0, 0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 0, x[15]);
+    return clifford4_make((const double[]){0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 0, 0, x[15]});
 }
 
 static inline clifford4
 clifford4_from_re(double a)
 {
-    return clifford4_make(a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return clifford4_make((const double[ALGPY_CLIFFORD4_N]){a});
 }
 
 static inline double
@@ -172,6 +170,15 @@ clifford4_basis(clifford4 result[ALGPY_CLIFFORD4_N])
             result[i].data[j] = components[j];
         }
     }
+}
+
+static inline void
+clifford4_gens(clifford4 result[4])
+{
+    result[0] = clifford4_make((const double[ALGPY_CLIFFORD4_N]){[1] = 1});
+    result[1] = clifford4_make((const double[ALGPY_CLIFFORD4_N]){[2] = 1});
+    result[2] = clifford4_make((const double[ALGPY_CLIFFORD4_N]){[4] = 1});
+    result[3] = clifford4_make((const double[ALGPY_CLIFFORD4_N]){[8] = 1});
 }
 
 static inline void
@@ -345,8 +352,8 @@ clifford4_real_slice(vec4 k, complex value)
             return result;
         }
     }
-    return clifford4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
-                          NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford4_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
+                          NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* Any unused generator leaves a three-generator Clifford subalgebra. */
@@ -390,8 +397,8 @@ clifford4_apply_subalgebra(vec4 k, clifford4 a, int generator,
     }
     value = clifford3_apply(subk, suba, f, deriv1, deriv2, deriv3, cf, cderiv1);
     if (isnan(value.data[0])) {
-        return clifford4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
-                              NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        return clifford4_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
+                              NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
     }
     for (i = 0; i < 8; i++) {
         int mask = (i & low) | ((i & ~low) << 1);
@@ -444,8 +451,8 @@ clifford4_apply_quadratic(double w, clifford4 b, double constant, double linear,
         result.data[0] = value.even - shift*value.odd;
         return result;
     }
-    return clifford4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
-                          NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+    return clifford4_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
+                          NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
 }
 
 /* Detect a cubic element relation before imposing unnecessary derivatives
@@ -510,7 +517,7 @@ clifford4_apply(vec4 k, clifford4 a,
     clifford4 b = a, b2, b3, result;
     int generator, ok, i;
     if (vec16_is_real(a)) {
-        return clifford4_real_slice(k, cf(complex_make(w, 0)));
+        return clifford4_real_slice(k, cf(complex_make((const double[]){w, 0})));
     }
     generator = clifford4_unused_generator(a);
     if (generator >= 0) {
@@ -535,8 +542,8 @@ clifford4_apply(vec4 k, clifford4 a,
         ok = poly4_apply(quartic, w, f, deriv1, deriv2, deriv3, cf, cderiv1, coefficients);
     }
     if (!ok) {
-        return clifford4_make(NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
-                              NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
+        return clifford4_make((const double[]){NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN,
+                              NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN});
     }
     for (i = 0; i < 16; i++) {
         result.data[i] = coefficients[1]*b.data[i] + coefficients[2]*b2.data[i] + coefficients[3]*b3.data[i];

@@ -21,6 +21,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "multicomplex4.h"
 
@@ -374,6 +375,23 @@ pymc4_basis(PyObject *cls, PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pymc4_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {4};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex4_gens((multicomplex4 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pymc4_coeffs(PyObject *cls, PyObject *Py_UNUSED(args))
 {
     Info *info = info_of_type((PyTypeObject *)cls);
@@ -616,7 +634,10 @@ pymc4_imag(PyObject *self, void *closure)
     return pymc4_im(self, NULL);
 }
 
+static PyObject *pymc4_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pymc4_getset[] = {
+    {"grade", pymc4_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pymc4_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pymc4_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -746,6 +767,33 @@ pymc4_ipow(PyObject *self, PyObject *arg)
     return mc4_from_value(Py_TYPE(self), multicomplex4_ipow(info->k, ((PyMC4 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pymc4_grade(PyObject *self, Py_ssize_t k)
+{
+    multicomplex4 v = ((PyMC4 *)self)->v;
+    switch (k) {
+        case 0:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_grade0(v));
+        case 1:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_grade1(v));
+        case 2:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_grade2(v));
+        case 3:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_grade3(v));
+        case 4:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_grade4(v));
+        default:
+            return mc4_from_value(Py_TYPE(self), multicomplex4_zero());
+    }
+}
+
+static PyObject *
+pymc4_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pymc4_grade, 5);
+}
+
 static PyMethodDef pymc4_methods[] = {
     {"to_float", (PyCFunction)pymc4_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pymc4_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -787,6 +835,7 @@ static PyMethodDef pymc4_methods[] = {
     {"zero", pymc4_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc4_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc4_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pymc4_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pymc4_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pymc4_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pymc4_conjugate, METH_NOARGS, "Conjugate."},

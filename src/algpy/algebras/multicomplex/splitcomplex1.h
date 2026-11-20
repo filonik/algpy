@@ -6,6 +6,7 @@
 #ifndef ALGPY_SPLITCOMPLEX1_H
 #define ALGPY_SPLITCOMPLEX1_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../fields/complex.h"
 
@@ -18,10 +19,11 @@
 typedef vec2 splitcomplex1;
 
 static inline splitcomplex1
-splitcomplex1_make(double x, double y)
+splitcomplex1_make(const double coeffs[ALGPY_SPLITCOMPLEX1_N])
 {
-    splitcomplex1 r = {{x, y}};
-    return r;
+    splitcomplex1 result;
+    memcpy(result.data, coeffs, sizeof(result.data));
+    return result;
 }
 
 /* Evaluate the real components x+y and x-y independently.
@@ -31,25 +33,25 @@ splitcomplex1_apply(splitcomplex1 a, double (*f)(double))
 {
     double p = f(a.data[0] + a.data[1]);
     double q = f(a.data[0] - a.data[1]);
-    return splitcomplex1_make((p + q)/2, (p - q)/2);
+    return splitcomplex1_make((const double[]){(p + q)/2, (p - q)/2});
 }
 
 static inline splitcomplex1
 splitcomplex1_re(splitcomplex1 a)
 {
-    return splitcomplex1_make(a.data[0], 0);
+    return splitcomplex1_make((const double[]){a.data[0], 0});
 }
 
 static inline splitcomplex1
 splitcomplex1_im(splitcomplex1 a)
 {
-    return splitcomplex1_make(0, a.data[1]);
+    return splitcomplex1_make((const double[]){0, a.data[1]});
 }
 
 static inline splitcomplex1
 splitcomplex1_from_re(double a)
 {
-    return splitcomplex1_make(a, 0);
+    return splitcomplex1_make((const double[]){a, 0});
 }
 
 static inline double
@@ -67,9 +69,9 @@ splitcomplex1_one(void)
 static inline splitcomplex1
 splitcomplex1_mul(splitcomplex1 x, splitcomplex1 y)
 {
-    return splitcomplex1_make(
+    return splitcomplex1_make((const double[]){
         x.data[0]*y.data[0] + x.data[1]*y.data[1],
-        x.data[0]*y.data[1] + x.data[1]*y.data[0]);
+        x.data[0]*y.data[1] + x.data[1]*y.data[0]});
 }
 
 static inline void
@@ -81,6 +83,12 @@ splitcomplex1_basis(splitcomplex1 result[ALGPY_SPLITCOMPLEX1_N])
             result[i].data[j] = i == j ? 1 : 0;
         }
     }
+}
+
+static inline void
+splitcomplex1_gens(splitcomplex1 result[1])
+{
+    result[0] = splitcomplex1_make((const double[]){0, 1});
 }
 
 static inline void
@@ -101,7 +109,7 @@ splitcomplex1_coeffs(
 static inline splitcomplex1
 splitcomplex1_conjugate(splitcomplex1 a)
 {
-    return splitcomplex1_make(a.data[0], -a.data[1]);
+    return splitcomplex1_make((const double[]){a.data[0], -a.data[1]});
 }
 
 /* Norm a*conj(a) = x^2 - y^2 */
@@ -115,7 +123,7 @@ static inline splitcomplex1
 splitcomplex1_inv(splitcomplex1 a)
 {
     double n = splitcomplex1_norm2(a);
-    return splitcomplex1_make(a.data[0] / n, -a.data[1] / n);
+    return splitcomplex1_make((const double[]){a.data[0] / n, -a.data[1] / n});
 }
 
 static inline splitcomplex1
@@ -180,7 +188,7 @@ splitcomplex1_rpow(splitcomplex1 a, splitcomplex1 b)
     double bm = b.data[0] - b.data[1];
     double rp = pow(ap, bp);
     double rm = pow(am, bm);
-    return splitcomplex1_make((rp + rm) / 2, (rp - rm) / 2);
+    return splitcomplex1_make((const double[]){(rp + rm) / 2, (rp - rm) / 2});
 }
 
 static inline splitcomplex1
@@ -462,5 +470,20 @@ splitcomplex1_rmat(splitcomplex1 a, double result[ALGPY_SPLITCOMPLEX1_N*ALGPY_SP
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline splitcomplex1
+splitcomplex1_grade0(splitcomplex1 a)
+{
+    const double *x = a.data;
+    return splitcomplex1_make((const double[]){x[0], 0});
+}
+
+static inline splitcomplex1
+splitcomplex1_grade1(splitcomplex1 a)
+{
+    const double *x = a.data;
+    return splitcomplex1_make((const double[]){0, x[1]});
+}
 
 #endif /* ALGPY_SPLITCOMPLEX1_H */

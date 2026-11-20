@@ -17,6 +17,7 @@ typedef complex complex1;
 #define complex1_inv complex_inv
 #define complex1_div complex_div
 #define complex1_basis complex_basis
+#define complex1_gens complex_gens
 #define complex1_coeffs complex_coeffs
 #define complex1_minpoly complex_minpoly
 #define complex1_eivals complex_eivals
@@ -71,5 +72,20 @@ typedef complex complex1;
 #define complex1_lmat complex_lmat
 #define complex1_rmat complex_rmat
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline complex1
+complex1_grade0(complex1 a)
+{
+    const double *x = a.data;
+    return complex1_make((const double[]){x[0], 0});
+}
+
+static inline complex1
+complex1_grade1(complex1 a)
+{
+    const double *x = a.data;
+    return complex1_make((const double[]){0, x[1]});
+}
 
 #endif /* ALGPY_COMPLEX1_H */

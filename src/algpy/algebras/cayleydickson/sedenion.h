@@ -7,6 +7,7 @@
 #ifndef ALGPY_SEDENION_H
 #define ALGPY_SEDENION_H
 
+#include <string.h>
 #include <stdint.h>
 #include "../../fields/complex.h"
 #include "octonion.h"
@@ -18,32 +19,33 @@
 typedef vec16 sedenion;
 
 static inline sedenion
-sedenion_make(double x0, double x1, double x2, double x3, double x4, double x5, double x6, double x7, double x8, double x9, double x10, double x11, double x12, double x13, double x14, double x15)
+sedenion_make(const double coeffs[ALGPY_SEDENION_N])
 {
-    sedenion result = {{x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15}};
+    sedenion result;
+    memcpy(result.data, coeffs, sizeof(result.data));
     return result;
 }
 
 static inline sedenion
 sedenion_re(sedenion a)
 {
-    return sedenion_make(a.data[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return sedenion_make((const double[]){a.data[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
 }
 
 static inline sedenion
 sedenion_im(sedenion a)
 {
-    return sedenion_make(
+    return sedenion_make((const double[]){
         0, a.data[1], a.data[2], a.data[3],
         a.data[4], a.data[5], a.data[6], a.data[7],
         a.data[8], a.data[9], a.data[10], a.data[11],
-        a.data[12], a.data[13], a.data[14], a.data[15]);
+        a.data[12], a.data[13], a.data[14], a.data[15]});
 }
 
 static inline sedenion
 sedenion_from_re(double a)
 {
-    return sedenion_make(a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return sedenion_make((const double[ALGPY_SEDENION_N]){a});
 }
 
 static inline double
@@ -55,7 +57,7 @@ sedenion_to_re(sedenion a)
 static inline sedenion
 sedenion_one(void)
 {
-    return sedenion_make(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return sedenion_make((const double[ALGPY_SEDENION_N]){[0] = 1});
 }
 
 /* Fixed-parameter Cayley-Dickson product of octonion pairs. */
@@ -76,11 +78,10 @@ sedenion_mul(sedenion a, sedenion b)
         octonion_mul(octonion_conjugate(b1), a1));
     octonion right = vec8_add(octonion_mul(b1, a0),
         octonion_mul(a1, octonion_conjugate(b0)));
-    return sedenion_make(
-        left.data[0], left.data[1], left.data[2], left.data[3],
-        left.data[4], left.data[5], left.data[6], left.data[7],
-        right.data[0], right.data[1], right.data[2], right.data[3],
-        right.data[4], right.data[5], right.data[6], right.data[7]);
+    sedenion result;
+    memcpy(result.data, left.data, sizeof(result.data)/2);
+    memcpy(result.data + ALGPY_SEDENION_N/2, right.data, sizeof(result.data)/2);
+    return result;
 }
 
 static inline void
@@ -92,6 +93,15 @@ sedenion_basis(sedenion result[ALGPY_SEDENION_N])
                 result[i].data[j] = i == j ? 1 : 0;
             }
     }
+}
+
+static inline void
+sedenion_gens(sedenion result[4])
+{
+    result[0] = sedenion_make((const double[ALGPY_SEDENION_N]){[1] = 1});
+    result[1] = sedenion_make((const double[ALGPY_SEDENION_N]){[2] = 1});
+    result[2] = sedenion_make((const double[ALGPY_SEDENION_N]){[4] = 1});
+    result[3] = sedenion_make((const double[ALGPY_SEDENION_N]){[8] = 1});
 }
 
 static inline void
@@ -171,11 +181,11 @@ sedenion_vector_norm(sedenion a)
 static inline sedenion
 sedenion_conjugate(sedenion a)
 {
-    return sedenion_make(
+    return sedenion_make((const double[]){
         a.data[0], -a.data[1], -a.data[2], -a.data[3],
         -a.data[4], -a.data[5], -a.data[6], -a.data[7],
         -a.data[8], -a.data[9], -a.data[10], -a.data[11],
-        -a.data[12], -a.data[13], -a.data[14], -a.data[15]);
+        -a.data[12], -a.data[13], -a.data[14], -a.data[15]});
 }
 
 static inline sedenion
@@ -215,7 +225,7 @@ static inline sedenion
 sedenion_apply(sedenion a, complex (*f)(complex))
 {
     double radius = sedenion_vector_norm(a);
-    complex value = f(complex_make(a.data[0], radius));
+    complex value = f(complex_make((const double[]){a.data[0], radius}));
     return sedenion_complex_slice(a, value, radius);
 }
 
@@ -235,11 +245,11 @@ sedenion_log(sedenion a)
 static inline sedenion
 sedenion_square(sedenion a)
 {
-    return sedenion_make(
+    return sedenion_make((const double[]){
         a.data[0]*a.data[0] - sedenion_vector_norm2(a), 2*a.data[0]*a.data[1], 2*a.data[0]*a.data[2], 2*a.data[0]*a.data[3],
         2*a.data[0]*a.data[4], 2*a.data[0]*a.data[5], 2*a.data[0]*a.data[6], 2*a.data[0]*a.data[7],
         2*a.data[0]*a.data[8], 2*a.data[0]*a.data[9], 2*a.data[0]*a.data[10], 2*a.data[0]*a.data[11],
-        2*a.data[0]*a.data[12], 2*a.data[0]*a.data[13], 2*a.data[0]*a.data[14], 2*a.data[0]*a.data[15]);
+        2*a.data[0]*a.data[12], 2*a.data[0]*a.data[13], 2*a.data[0]*a.data[14], 2*a.data[0]*a.data[15]});
 }
 
 /* Integer powers by squaring; negative exponents invert the base once. */
@@ -298,7 +308,7 @@ sedenion_lpows(sedenion a, double b)
             return sedenion_from_re(real);
         }
     }
-    value = complex_lpows(complex_make(a.data[0], radius), b);
+    value = complex_lpows(complex_make((const double[]){a.data[0], radius}), b);
     return sedenion_complex_slice(a, value, radius);
 }
 
@@ -392,8 +402,8 @@ static inline void
 sedenion_eivals(sedenion a, complex result[2])
 {
     double vn = sedenion_vector_norm(a);
-    result[0] = complex_make(a.data[0], -vn);
-    result[1] = complex_make(a.data[0], +vn);
+    result[0] = complex_make((const double[]){a.data[0], -vn});
+    result[1] = complex_make((const double[]){a.data[0], +vn});
 }
 
 /* Common algebra API. */
@@ -571,5 +581,41 @@ sedenion_rmat(sedenion a, double result[ALGPY_SEDENION_N*ALGPY_SEDENION_N])
     }
 }
 
+/* Grade projections: grade k keeps the coefficients whose basis index has
+ * k generator bits. */
+static inline sedenion
+sedenion_grade0(sedenion a)
+{
+    const double *x = a.data;
+    return sedenion_make((const double[]){x[0], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline sedenion
+sedenion_grade1(sedenion a)
+{
+    const double *x = a.data;
+    return sedenion_make((const double[]){0, x[1], x[2], 0, x[4], 0, 0, 0, x[8], 0, 0, 0, 0, 0, 0, 0});
+}
+
+static inline sedenion
+sedenion_grade2(sedenion a)
+{
+    const double *x = a.data;
+    return sedenion_make((const double[]){0, 0, 0, x[3], 0, x[5], x[6], 0, 0, x[9], x[10], 0, x[12], 0, 0, 0});
+}
+
+static inline sedenion
+sedenion_grade3(sedenion a)
+{
+    const double *x = a.data;
+    return sedenion_make((const double[]){0, 0, 0, 0, 0, 0, 0, x[7], 0, 0, 0, x[11], 0, x[13], x[14], 0});
+}
+
+static inline sedenion
+sedenion_grade4(sedenion a)
+{
+    const double *x = a.data;
+    return sedenion_make((const double[]){0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, x[15]});
+}
 
 #endif /* ALGPY_SEDENION_H */

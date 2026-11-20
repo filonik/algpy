@@ -14,6 +14,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../_conversions.h"
+#include "../../_grades.h"
 
 #include "complex1.h"
 
@@ -53,7 +54,7 @@ complex1_from_object(PyObject *o, complex1 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = complex1_make(d, 0);
+        *out = complex1_make((const double[]){d, 0});
         return 1;
     }
     return 0;
@@ -67,7 +68,7 @@ pycomplex1_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dd", kwlist, &re, &im)) {
         return NULL;
     }
-    return PyComplex1_FromValue(type, complex1_make(re, im));
+    return PyComplex1_FromValue(type, complex1_make((const double[]){re, im}));
 }
 
 static PyObject *
@@ -307,6 +308,21 @@ pycomplex1_basis(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 }
 
 static PyObject *
+pycomplex1_gens(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
+{
+    npy_intp dims[1] = {1};
+    PyArrayObject *arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, dims, npy_complex1);
+    complex1 *basis;
+    if (arr == NULL) {
+        return NULL;
+    }
+    basis = (complex1 *)PyArray_DATA(arr);
+    complex1_gens(basis);
+    return (PyObject *)arr;
+}
+
+static PyObject *
 pycomplex1_coeffs(PyObject *Py_UNUSED(cls), PyObject *Py_UNUSED(args))
 {
     npy_intp dims[2] = {2, 2};
@@ -419,7 +435,10 @@ pycomplex1_imag(PyObject *self, void *closure)
     return pycomplex1_im(self, NULL);
 }
 
+static PyObject *pycomplex1_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pycomplex1_getset[] = {
+    {"grade", pycomplex1_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pycomplex1_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pycomplex1_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -525,6 +544,27 @@ pycomplex1_ipow(PyObject *self, PyObject *arg)
     return PyComplex1_FromValue(Py_TYPE(self), complex1_ipow(((PyComplex1 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pycomplex1_grade(PyObject *self, Py_ssize_t k)
+{
+    complex1 v = ((PyComplex1 *)self)->v;
+    switch (k) {
+        case 0:
+            return PyComplex1_FromValue(Py_TYPE(self), complex1_grade0(v));
+        case 1:
+            return PyComplex1_FromValue(Py_TYPE(self), complex1_grade1(v));
+        default:
+            return PyComplex1_FromValue(Py_TYPE(self), complex1_zero());
+    }
+}
+
+static PyObject *
+pycomplex1_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pycomplex1_grade, 2);
+}
+
 static PyMethodDef pycomplex1_methods[] = {
     {"to_float", (PyCFunction)pycomplex1_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pycomplex1_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -557,6 +597,7 @@ static PyMethodDef pycomplex1_methods[] = {
     {"zero", pycomplex1_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pycomplex1_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pycomplex1_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pycomplex1_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pycomplex1_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm2", pycomplex1_norm2, METH_NOARGS, "Squared norm."},
     {"norm", pycomplex1_norm, METH_NOARGS, "Norm as a Python float."},
@@ -775,7 +816,7 @@ static PyArray_DescrProto pycomplex1_descr_proto = {
         complex1 *dst = (complex1 *)to;                                     \
         npy_intp i;                                                          \
         for (i = 0; i < n; i++) {                                            \
-            dst[i] = complex1_make(convert(src[i]), 0);                      \
+            dst[i] = complex1_make((const double[]){convert(src[i]), 0});                      \
         }                                                                    \
     }
 

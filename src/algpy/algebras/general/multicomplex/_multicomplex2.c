@@ -20,6 +20,7 @@
 #include "numpy/ufuncobject.h"
 
 #include "../../../_conversions.h"
+#include "../../../_grades.h"
 
 #include "multicomplex2.h"
 
@@ -78,7 +79,7 @@ mc2_from_object(Info *info, PyObject *o, multicomplex2 *out)
         if (d == -1.0 && PyErr_Occurred()) {
             return -1;
         }
-        *out = multicomplex2_make(d, 0, 0, 0);
+        *out = multicomplex2_make((const double[]){d, 0, 0, 0});
         return 1;
     }
     return 0;
@@ -93,7 +94,7 @@ pymc2_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                                      &w, &x, &y, &z)) {
         return NULL;
     }
-    return mc2_from_value(type, multicomplex2_make(w, x, y, z));
+    return mc2_from_value(type, multicomplex2_make((const double[]){w, x, y, z}));
 }
 
 static PyObject *
@@ -242,7 +243,7 @@ pymc2_zero(PyObject *cls, PyObject *Py_UNUSED(args))
 static PyObject *
 pymc2_one(PyObject *cls, PyObject *Py_UNUSED(args))
 {
-    return mc2_from_value((PyTypeObject *)cls, multicomplex2_make(1, 0, 0, 0));
+    return mc2_from_value((PyTypeObject *)cls, multicomplex2_make((const double[]){1, 0, 0, 0}));
 }
 
 static PyObject *rebuild_func = NULL;
@@ -353,6 +354,23 @@ pymc2_basis(PyObject *cls, PyObject *Py_UNUSED(args))
         return NULL;
     }
     multicomplex2_basis((multicomplex2 *)PyArray_DATA(arr));
+    return (PyObject *)arr;
+}
+
+static PyObject *
+pymc2_gens(PyObject *cls, PyObject *Py_UNUSED(args))
+{
+    Info *info = info_of_type((PyTypeObject *)cls);
+    npy_intp dims[1] = {2};
+    PyArrayObject *arr;
+    if (info == NULL) {
+        return NULL;
+    }
+    arr = (PyArrayObject *)PyArray_SimpleNew(1, dims, info->typenum);
+    if (arr == NULL) {
+        return NULL;
+    }
+    multicomplex2_gens((multicomplex2 *)PyArray_DATA(arr));
     return (PyObject *)arr;
 }
 
@@ -599,7 +617,10 @@ pymc2_imag(PyObject *self, void *closure)
     return pymc2_im(self, NULL);
 }
 
+static PyObject *pymc2_grades(PyObject *self, void *closure);
+
 static PyGetSetDef pymc2_getset[] = {
+    {"grade", pymc2_grades, NULL, "Read-only grade projections: x.grade[k] for 0 <= k < len(x.grade).", NULL},
     {"real", pymc2_real, NULL, "Real part in the algebra.", NULL},
     {"imag", pymc2_imag, NULL, "Non-real part in the algebra.", NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -729,6 +750,29 @@ pymc2_ipow(PyObject *self, PyObject *arg)
     return mc2_from_value(Py_TYPE(self), multicomplex2_ipow(info->k, ((PyMC2 *)self)->v, (int64_t)exponent));
 }
 
+/* Projection onto grade k, for 0 <= k <= generators; used by x.grade. */
+static PyObject *
+pymc2_grade(PyObject *self, Py_ssize_t k)
+{
+    multicomplex2 v = ((PyMC2 *)self)->v;
+    switch (k) {
+        case 0:
+            return mc2_from_value(Py_TYPE(self), multicomplex2_grade0(v));
+        case 1:
+            return mc2_from_value(Py_TYPE(self), multicomplex2_grade1(v));
+        case 2:
+            return mc2_from_value(Py_TYPE(self), multicomplex2_grade2(v));
+        default:
+            return mc2_from_value(Py_TYPE(self), multicomplex2_zero());
+    }
+}
+
+static PyObject *
+pymc2_grades(PyObject *self, void *Py_UNUSED(closure))
+{
+    return algpy_grades_view(self, pymc2_grade, 3);
+}
+
 static PyMethodDef pymc2_methods[] = {
     {"to_float", (PyCFunction)pymc2_to_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert algebra values to real coefficient arrays, with optional dtype."},
     {"from_float", (PyCFunction)pymc2_from_float, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Convert arrays with a final coefficient axis to the algebra dtype."},
@@ -770,6 +814,7 @@ static PyMethodDef pymc2_methods[] = {
     {"zero", pymc2_zero, METH_NOARGS | METH_CLASS, "Additive identity."},
     {"one", pymc2_one, METH_NOARGS | METH_CLASS, "Multiplicative identity."},
     {"basis", pymc2_basis, METH_NOARGS | METH_CLASS, "Algebra basis."},
+    {"gens", pymc2_gens, METH_NOARGS | METH_CLASS, "Algebra generators in parameter order; excludes the identity."},
     {"coeffs", pymc2_coeffs, METH_NOARGS | METH_CLASS, "Basis multiplication table."},
     {"norm", pymc2_norm, METH_NOARGS, "Norm as a Python complex."},
     {"conjugate", pymc2_conjugate, METH_NOARGS, "Conjugate."},
@@ -952,7 +997,7 @@ npymc2_setitem(PyObject *item, void *data, void *arr)
             }
         }
         Py_DECREF(seq);
-        v = multicomplex2_make(d[0], d[1], d[2], d[3]);
+        v = multicomplex2_make(d);
     }
     if (arr != NULL && PyArray_ISBYTESWAPPED((PyArrayObject *)arr)) {
         swap_bytes((char *)&v);
@@ -1405,7 +1450,7 @@ mc2_rebuild(PyObject *module, PyObject *args)
     if (type == NULL) {
         return NULL;
     }
-    res = mc2_from_value((PyTypeObject *)type, multicomplex2_make(w, x, y, z));
+    res = mc2_from_value((PyTypeObject *)type, multicomplex2_make((const double[]){w, x, y, z}));
     Py_DECREF(type);
     return res;
 }
