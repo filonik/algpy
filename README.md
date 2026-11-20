@@ -1,9 +1,7 @@
 # algpy
 
-NumPy number types for Cayley-Dickson, Clifford, multicomplex, and real and
-complex jet algebras, and exterior lattices, with up to 32 real components.
-Use them as scalars or NumPy array dtypes for
-arithmetic, elementary functions, and algebra-specific operations.
+NumPy number types for Cayley-Dickson, Clifford, and multicomplex algebras, with up to 32 real components.
+Use them as scalars or NumPy array dtypes for arithmetic, elementary functions, and algebra-specific operations.
 
 ## Installation
 
@@ -103,13 +101,13 @@ x = CD(1, .2, .3, .4)
 The following fixed specializations are exported from `algpy.algebras`
 and `algpy.algebras.cayleydickson`:
 
-| Types        | Real components | Corresponding general algebra   |
-| ------------ | --------------- | ------------------------------- |
-| `real`       | 1               | Real numbers                    |
-| `quaternion` | 4               | `cayleydickson(-1, -1)`         |
-| `octonion`   | 8               | `cayleydickson(-1, -1, -1)`     |
-| `sedenion`   | 16              | `cayleydickson(-1, -1, -1, -1)` |
-| `trigintaduonion` | 32          | `cayleydickson(-1, -1, -1, -1, -1)` |
+| Types             | Real components | Corresponding general algebra       |
+| ----------------- | --------------- | ----------------------------------- |
+| `real`            | 1               | Real numbers                        |
+| `quaternion`      | 4               | `cayleydickson(-1, -1)`             |
+| `octonion`        | 8               | `cayleydickson(-1, -1, -1)`         |
+| `sedenion`        | 16              | `cayleydickson(-1, -1, -1, -1)`     |
+| `trigintaduonion` | 32              | `cayleydickson(-1, -1, -1, -1, -1)` |
 
 Sedenions and trigintaduonions are nonassociative and have zero divisors.
 
@@ -147,15 +145,15 @@ z = Cl(1, .2, .3, .4)
 The following fixed geometric algebras are exported from `algpy.algebras`
 and `algpy.algebras.clifford`:
 
-| Type | Geometry dimension | Generators | Real components | Corresponding general algebra |
-| ---- | ------------------ | ---------- | --------------- | ----------------------------- |
-| `pga1` | 1 | 2 | 4 | `clifford(0, 1)` |
-| `pga2` | 2 | 3 | 8 | `clifford(0, 1, 1)` |
-| `pga3` | 3 | 4 | 16 | `clifford(0, 1, 1, 1)` |
-| `pga4` | 4 | 5 | 32 | `clifford(0, 1, 1, 1, 1)` |
-| `cga1` | 1 | 3 | 8 | `clifford(-1, 1, 1)` |
-| `cga2` | 2 | 4 | 16 | `clifford(-1, 1, 1, 1)` |
-| `cga3` | 3 | 5 | 32 | `clifford(-1, 1, 1, 1, 1)` |
+| Type   | Geometry dimension | Generators | Real components | Corresponding general algebra |
+| ------ | ------------------ | ---------- | --------------- | ----------------------------- |
+| `pga1` | 1                  | 2          | 4               | `clifford(0, 1)`              |
+| `pga2` | 2                  | 3          | 8               | `clifford(0, 1, 1)`           |
+| `pga3` | 3                  | 4          | 16              | `clifford(0, 1, 1, 1)`        |
+| `pga4` | 4                  | 5          | 32              | `clifford(0, 1, 1, 1, 1)`     |
+| `cga1` | 1                  | 3          | 8               | `clifford(-1, 1, 1)`          |
+| `cga2` | 2                  | 4          | 16              | `clifford(-1, 1, 1, 1)`       |
+| `cga3` | 3                  | 5          | 32              | `clifford(-1, 1, 1, 1, 1)`    |
 
 Here the suffix counts **geometry dimensions**. `Type.N` still gives the
 number of real coefficients. Projective geometric algebra (PGA) puts the
@@ -277,9 +275,9 @@ coefficients, the **normalized derivatives** `f^(k)(x)/k!` for
 `k = 0, ..., N`, so arithmetic and elementary functions of jets perform
 forward-mode automatic differentiation of any order up to `N`.
 
-| Types | Real components | Generator |
-| ----- | --------------- | --------- |
-| `jet1`–`jet5` | 2, 3, 4, 5, 6 | `e`, with `e^(N+1) = 0` |
+| Types         | Real components | Generator               |
+| ------------- | --------------- | ----------------------- |
+| `jet1`–`jet5` | 2, 3, 4, 5, 6   | `e`, with `e^(N+1) = 0` |
 
 These differ from `dual1`–`dual5`, the tensor products of `N` dual numbers:
 `dualN` has `N` generators and `2^N` components, and its top coefficient
@@ -328,12 +326,12 @@ Clifford algebras with every generator square zero, in the same coefficient
 order as `clifford(0, ..., 0)`, but they expose a lattice API instead of an
 algebra API:
 
-| Operation | Scalar interface | NumPy interface | Identity |
-| --------- | ---------------- | --------------- | -------- |
-| Join (exterior product) | `a \| b` | `np.bitwise_or` | `Type.bottom()`, the scalar 1 |
-| Meet (regressive product) | `a & b` | `np.bitwise_and` | `Type.top()`, the pseudoscalar |
-| Left and right duals | `a.ldual()`, `a.rdual()` | `algpy.lattices.ldual`, `algpy.lattices.rdual` | |
-| Dual, odd dimensions only | `~a`, `a.dual()` | `np.invert` | |
+| Operation                 | Scalar interface         | NumPy interface                                | Identity                       |
+| ------------------------- | ------------------------ | ---------------------------------------------- | ------------------------------ |
+| Join (exterior product)   | `a \| b`                 | `np.bitwise_or`                                | `Type.bottom()`, the scalar 1  |
+| Meet (regressive product) | `a & b`                  | `np.bitwise_and`                               | `Type.top()`, the pseudoscalar |
+| Left and right duals      | `a.ldual()`, `a.rdual()` | `algpy.lattices.ldual`, `algpy.lattices.rdual` |                                |
+| Dual, odd dimensions only | `~a`, `a.dual()`         | `np.invert`                                    |                                |
 
 The duals are Poincaré dualities that exchange join and meet. On basis blades,
 `a | a.ldual() == top` and `a.rdual() | a == top`; they are mutually inverse,
@@ -504,10 +502,10 @@ assert epsilon.ipow(0) == dual1.one()
 `a.norm()` returns an algebraic norm. Its Python return type depends on the
 algebra type:
 
-| Algebras                                                                             | Return type        |
-| ------------------------------------------------------------------------------------ | ------------------ |
+| Algebras                                                                                                                                                                     | Return type        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
 | `real`, `complex1`–`complex5`, `dual1`–`dual5`, `jet1`–`jet5`, `complex_jet1`–`complex_jet5`, `quaternion`, `octonion`, `sedenion`, `trigintaduonion`, `pga2`–`pga4`, `cga3` | Built-in `float`   |
-| `splitcomplex1`–`splitcomplex5`, `pga1`, `cga1`, `cga2`, and all general parameterized types | Built-in `complex` |
+| `splitcomplex1`–`splitcomplex5`, `pga1`, `cga1`, `cga2`, and all general parameterized types                                                                                 | Built-in `complex` |
 
 Complex-valued norms always return `complex`, even for a purely real result;
 changing `K` does not change that return type. For the Euclidean length of
@@ -528,13 +526,13 @@ pseudoscalar. The centre is a two-dimensional algebra, available as
 array of that type, each `c` standing for `c[0] + c[1]*w`. Multiplied by its
 conjugate under `w -> -w`, this polynomial gives `a.minpoly()`.
 
-| Types | `w*w` | `Type.center` | Coefficients |
-| ----- | ----- | ------------- | ------------ |
-| `clifford1` | `k0` | the type itself | 2: `[-a, 1]` |
-| `clifford3` | `-k0*k1*k2` | `clifford1` with `K = [w*w]` | 3: a central quadratic |
-| `clifford5` | `k0*k1*k2*k3*k4` | `clifford1` with `K = [w*w]` | 5: a central quartic |
-| `pga2`, `cga1` | `0`, `1` | `dual1`, `splitcomplex1` | 3 |
-| `pga4`, `cga3` | `0`, `-1` | `dual1`, `complex1` | 5 |
+| Types          | `w*w`            | `Type.center`                | Coefficients           |
+| -------------- | ---------------- | ---------------------------- | ---------------------- |
+| `clifford1`    | `k0`             | the type itself              | 2: `[-a, 1]`           |
+| `clifford3`    | `-k0*k1*k2`      | `clifford1` with `K = [w*w]` | 3: a central quadratic |
+| `clifford5`    | `k0*k1*k2*k3*k4` | `clifford1` with `K = [w*w]` | 5: a central quartic   |
+| `pga2`, `cga1` | `0`, `1`         | `dual1`, `splitcomplex1`     | 3                      |
+| `pga4`, `cga3` | `0`, `-1`        | `dual1`, `complex1`          | 5                      |
 
 ```python
 from algpy.algebras.general import clifford
